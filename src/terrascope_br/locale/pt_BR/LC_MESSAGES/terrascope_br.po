@@ -1,7 +1,6 @@
 # Portuguese (Brazil) translations for terrascope-br.
 # Copyright (C) 2026 ORGANIZATION
-# This file is distributed under the same license as the terrascope-br
-# project.
+# This file is distributed under the same license as the terrascope-br project.
 # FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
 #
 #, fuzzy
@@ -9,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: terrascope-br 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-10 19:19-0300\n"
+"POT-Creation-Date: 2026-11-10 20:08-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: pt_BR\n"
@@ -20,26 +19,31 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: src/terrascope_br/base.py:105
+#: src/terrascope_br/base.py:108
 #, python-format
 msgid "unavailable: %s"
 msgstr "indisponível: %s"
 
-#: src/terrascope_br/base.py:106
+#: src/terrascope_br/base.py:110
+#, python-format
+msgid "cache unreadable: %s"
+msgstr "cache ilegível: %s"
+
+#: src/terrascope_br/base.py:111
 msgid "no data yet"
 msgstr "sem dados ainda"
 
-#: src/terrascope_br/base.py:108
+#: src/terrascope_br/base.py:113
 #, python-format
 msgid "update failed: %s"
 msgstr "falha na atualização: %s"
 
-#: src/terrascope_br/base.py:110
+#: src/terrascope_br/base.py:115
 #, python-format
 msgid "no update since %s"
 msgstr "sem atualização desde %s"
 
-#: src/terrascope_br/base.py:111
+#: src/terrascope_br/base.py:116
 #, python-format
 msgid "updated %s"
 msgstr "atualizado %s"
@@ -54,23 +58,23 @@ msgstr ""
 msgid "Data: IBGE, INPE, IAG-USP, SP Águas"
 msgstr "Dados: IBGE, INPE, IAG-USP, SP Águas"
 
-#: src/terrascope_br/sources/chuva_online.py:84
+#: src/terrascope_br/sources/chuva_online.py:87
 msgid "Chuva Online radar, 36 km"
 msgstr "radar Chuva Online, 36 km"
 
-#: src/terrascope_br/sources/chuva_online.py:85
+#: src/terrascope_br/sources/chuva_online.py:88
 msgid "RADAR"
 msgstr "RADAR"
 
-#: src/terrascope_br/sources/chuva_online.py:169
+#: src/terrascope_br/sources/chuva_online.py:176
 msgid "weak"
 msgstr "fraca"
 
-#: src/terrascope_br/sources/chuva_online.py:170
+#: src/terrascope_br/sources/chuva_online.py:177
 msgid "moderate"
 msgstr "moderada"
 
-#: src/terrascope_br/sources/chuva_online.py:171
+#: src/terrascope_br/sources/chuva_online.py:178
 msgid "strong"
 msgstr "forte"
 
@@ -143,19 +147,19 @@ msgstr "LOCAL"
 msgid "POSITION"
 msgstr "POSIÇÃO"
 
-#: src/terrascope_br/sources/ibge.py:90
+#: src/terrascope_br/sources/ibge.py:117
 msgid "IBGE states"
 msgstr "estados do IBGE"
 
-#: src/terrascope_br/sources/ibge.py:91
+#: src/terrascope_br/sources/ibge.py:118
 msgid "STATE"
 msgstr "ESTADO"
 
-#: src/terrascope_br/sources/ibge.py:98
+#: src/terrascope_br/sources/ibge.py:125
 msgid "IBGE municipalities"
 msgstr "municípios do IBGE"
 
-#: src/terrascope_br/sources/ibge.py:99
+#: src/terrascope_br/sources/ibge.py:126
 msgid "MUNICIPALITY"
 msgstr "MUNICÍPIO"
 
@@ -191,8 +195,7 @@ msgstr "IDADE"
 msgid "unnamed station"
 msgstr "estação sem nome"
 
-#: src/terrascope_br/sources/spaguas.py:62
-#: src/terrascope_br/sources/spaguas.py:63
+#: src/terrascope_br/sources/spaguas.py:62 src/terrascope_br/sources/spaguas.py:63
 msgid "unknown"
 msgstr "desconhecido"
 

@@ -28,7 +28,6 @@ def _layers():
 def test_fresh_layer_has_title_and_at_most_one_key_line(layer):
     layer.data_time = time.time()
     layer.error = ""
-    layer.status = layer.freshness_text()
     lines = layer.legend_lines()
     assert len(lines) <= 2
     assert lines[0].text == layer.source_name and lines[0].bold
@@ -39,7 +38,6 @@ def test_fresh_layer_has_title_and_at_most_one_key_line(layer):
 def test_problem_replaces_the_key_with_one_message(layer):
     layer.data_time = time.time() - 365 * 24 * 3600 if layer.name == "br_ufs" else None
     layer.error = "HTTP 503"
-    layer.status = layer.freshness_text()
     lines = layer.legend_lines()
     assert len(lines) == 2
     assert lines[1].text == layer.status
@@ -49,5 +47,4 @@ def test_stale_radar_says_when_it_was_last_updated():
     layer = chuva_online.RadarLayer()
     layer.data_time = time.time() - 2 * 3600
     layer.error = ""
-    layer.status = layer.freshness_text()
     assert layer.legend_lines()[1].text.startswith("no update since")

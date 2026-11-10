@@ -42,7 +42,7 @@ class SourceLayer(Layer):
         self.items: list = []
         self.data_time: float | None = None   # epoch of the data shown
         self.error = ""                       # reason of the last failed fetch
-        self.status = ""                      # what the legend says when data is not fine
+        self.read_error = ""                  # reason the cache could not be read
 
     # -- what each source implements ------------------------------------------------
     def stamp_file(self):
@@ -79,17 +79,19 @@ class SourceLayer(Layer):
         return True
 
     def reload(self) -> None:
+        # Runs on the UI thread after a fetch, and at startup. The legend text is
+        # worked out from the current state in legend_lines(), not stored here, so
+        # a failure or an ageing cache shows up without another reload.
         try:
             self.items, self.data_time = self.parse()
+            self.read_error = ""
         except (OSError, ValueError, KeyError, TypeError) as error:
             self.items, self.data_time = [], None
-            self.error = self.error or f"cache unreadable: {error}"
-        self.status = self.freshness_text()
+            self.read_error = str(error)
         self.dirty = True
 
     def clear(self) -> None:
         self.items = []
-        self.status = ""
         self.dirty = True
 
     def is_stale(self) -> bool:
@@ -97,18 +99,26 @@ class SourceLayer(Layer):
 
     def has_problem(self) -> bool:
         """True when the legend must show a message instead of the colour key."""
-        return bool(self.error) or self.data_time is None or self.is_stale()
+        return bool(self.error or self.read_error) or self.data_time is None or self.is_stale()
 
     def freshness_text(self) -> str:
+        """What the legend says about the data, from the state right now."""
         if self.data_time is None:
             if self.error:
                 return _("unavailable: %s") % self.error
+            if self.read_error:
+                return _("cache unreadable: %s") % self.read_error
             return _("no data yet")
         if self.error:
             return _("update failed: %s") % self.error
         if self.is_stale():
             return _("no update since %s") % utc_text(self.data_time)
         return _("updated %s") % utc_text(self.data_time)
+
+    @property
+    def status(self) -> str:
+        """The freshness text, as it is now (kept for callers that read it)."""
+        return self.freshness_text()
 
     # -- legend and info box ---------------------------------------------------------
     def legend_key(self) -> tuple[tuple[str, str, str], ...]:
@@ -121,7 +131,7 @@ class SourceLayer(Layer):
     def legend_lines(self) -> list[SidebarLine]:
         lines = [SidebarLine(text=self.legend_title(), bold=True)]
         if self.has_problem():
-            lines.append(SidebarLine(text=self.status))
+            lines.append(SidebarLine(text=self.freshness_text()))
         elif self.legend_key():
             lines.append(SidebarLine(text="", legend_items=self.legend_key()))
         return lines

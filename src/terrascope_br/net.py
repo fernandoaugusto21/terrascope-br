@@ -4,10 +4,12 @@ per-host pacing. Failures raise SourceError; the layer decides what to show."""
 from __future__ import annotations
 
 import gzip
+import http.client
 import threading
 import time
 import urllib.error
 import urllib.request
+import zlib
 from urllib.parse import urlsplit
 
 from terrascope.core.config import USER_AGENT
@@ -36,7 +38,7 @@ def decode_body(body: bytes, headers) -> bytes:
     if encoding == "gzip" or body[:2] == b"\x1f\x8b":
         try:
             return gzip.decompress(body)
-        except (OSError, EOFError) as error:
+        except (OSError, EOFError, zlib.error) as error:
             raise SourceError(f"bad gzip body: {error}") from error
     return body
 
@@ -58,7 +60,8 @@ def get(url: str, timeout: float, *, min_gap: float = 1.0,
         if error.code == 304:
             return 304, b"", dict(error.headers.items()) if error.headers else {}
         raise SourceError(f"HTTP {error.code}") from error
-    except (urllib.error.URLError, TimeoutError, OSError) as error:
+    except (urllib.error.URLError, TimeoutError, OSError, http.client.HTTPException) as error:
+        # HTTPException covers IncompleteRead and BadStatusLine: a cut connection, not a bug.
         reason = getattr(error, "reason", error)
         raise SourceError(f"{type(reason).__name__}: {reason}") from error
     if len(body) > MAX_BYTES:

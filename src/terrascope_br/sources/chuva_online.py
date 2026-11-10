@@ -58,6 +58,9 @@ def cell_colours(rgb: np.ndarray, mask: np.ndarray, view: View) -> dict[tuple[in
     cols = np.arange(view.width) + 0.5
     rows = np.arange(view.height) + 0.5
     lons = view.origin_lon + cols * view.lon_span / view.width
+    # The view can cross the antimeridian: bring each cell centre back to [-180, 180),
+    # so the box of the radar is found wherever the map is wrapped (see WRAP_SHIFTS in core).
+    lons = (lons + 180.0) % 360.0 - 180.0
     lats = view.origin_lat - rows * view.lat_span / view.height
     px = np.floor((lons - min_lon) / (max_lon - min_lon) * width).astype(int)
     py = np.floor((max_lat - lats) / (max_lat - min_lat) * height).astype(int)
@@ -106,6 +109,7 @@ class RadarLayer(SourceLayer):
         modified = dict(manifest.get("modified", {}))
         failures = []
         downloaded = 0
+        unchanged = 0
         for index in range(1, FRAMES + 1):
             file = store.path("chuva_online", f"loop_{index}.png")
             headers_epoch = modified.get(str(index))
@@ -118,6 +122,7 @@ class RadarLayer(SourceLayer):
                 failures.append(f"{index}: {error}")
                 continue
             if status == 304:
+                unchanged += 1  # the copy we have is still the site's current frame
                 continue
             last_modified = headers.get("Last-Modified") or headers.get("last-modified")
             try:
@@ -134,7 +139,9 @@ class RadarLayer(SourceLayer):
         store.write_bytes(self.stamp_file(), json.dumps({
             "fetched": time.time(), "modified": modified,
         }).encode("utf-8"))
-        if failures and downloaded == 0:
+        # Frames that came back unchanged count as success: only a fetch that got no
+        # usable frame at all, new or current, is a failure.
+        if failures and downloaded == 0 and unchanged == 0:
             raise SourceError("; ".join(failures))
 
     def parse(self):
