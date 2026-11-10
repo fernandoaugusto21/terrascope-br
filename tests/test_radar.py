@@ -42,7 +42,7 @@ def test_old_frame_is_hidden_and_announced():
     layer.data_time = time.time() - 2 * 3600
     layer.status = layer.freshness_text()
     assert not layer.build(View(*SAO_PAULO_VIEW)).bg_cells
-    assert layer.status.startswith("Chuva Online sem atualização desde")
+    assert layer.status.startswith("no update since")
 
 
 def test_fresh_frame_is_drawn():

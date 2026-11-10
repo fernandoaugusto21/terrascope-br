@@ -17,12 +17,12 @@ from email.utils import formatdate, parsedate_to_datetime
 import numpy as np
 from PIL import Image
 
-from terrascope.core.layer import LayerRender, SidebarLine
+from terrascope.core.layer import LayerRender
 from terrascope.core.view import View
 
 from terrascope_br import store
 from terrascope_br._i18n import _
-from terrascope_br.base import SourceLayer
+from terrascope_br.base import SourceLayer, key
 from terrascope_br.net import SourceError, get
 
 FRAME_URL = "https://www.starnet.iag.usp.br/img_starnet/Radar_USP/pelletron_36km/loop/36km_loop_{index}.png"
@@ -36,7 +36,6 @@ DISC_RADIUS = 436.0
 # Precipitation colours are saturated; grey and black are borders, text and the bar.
 MIN_SATURATION = 60
 STALE_SECONDS = 30 * 60
-LEGEND_SWATCHES = (("#00a800", "weak"), ("#ffe00b", "moderate"), ("#e50000", "strong"))
 
 _decoded: dict[str, tuple[float, np.ndarray, np.ndarray]] = {}
 
@@ -157,14 +156,6 @@ class RadarLayer(SourceLayer):
         _, rgb, mask = _decoded[key]
         return [{"rgb": rgb, "mask": mask}], modified[newest]
 
-    def freshness_text(self) -> str:
-        if self.data_time is None:
-            return _("Chuva Online: no frame yet") if not self.error else _("unavailable: %s") % self.error
-        when = datetime.fromtimestamp(self.data_time, timezone.utc).strftime("%d/%m %H:%M UTC")
-        if time.time() - self.data_time > STALE_SECONDS:
-            return _("Chuva Online sem atualização desde %s") % when
-        return _("frame of %s") % when
-
     def build(self, view: View) -> LayerRender:
         if not self.items or self.data_time is None:
             return LayerRender(None, "#000000")
@@ -173,5 +164,9 @@ class RadarLayer(SourceLayer):
         frame = self.items[0]
         return LayerRender(None, "#000000", bg_cells=cell_colours(frame["rgb"], frame["mask"], view))
 
-    def legend_rows(self) -> list[SidebarLine]:
-        return [SidebarLine(text=_(label), swatches=(colour,)) for colour, label in LEGEND_SWATCHES]
+    def legend_key(self):
+        return key(
+            ("#00a800", _("weak")),
+            ("#ffe00b", _("moderate")),
+            ("#e50000", _("strong")),
+        )

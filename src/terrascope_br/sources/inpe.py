@@ -7,11 +7,11 @@ import re
 import time
 from datetime import datetime, timedelta, timezone
 
-from terrascope.core.layer import LayerRender, Marker, SidebarLine
+from terrascope.core.layer import LayerRender, Marker
 
 from terrascope_br import store
 from terrascope_br._i18n import _
-from terrascope_br.base import SourceLayer
+from terrascope_br.base import SourceLayer, key
 from terrascope_br.net import SourceError, get
 
 INDEX_URL = "https://dataserver-coids.inpe.br/queimadas/queimadas/focos/csv/10min/"
@@ -136,12 +136,12 @@ class FireLayer(SourceLayer):
                                   glyph="*", item=item, selected=_same_fire(item, self.selected)))
         return LayerRender(None, "#000000", markers=markers)
 
-    def legend_rows(self) -> list[SidebarLine]:
-        return [
-            SidebarLine(text=_("< 1 h"), swatches=(AGE_BANDS[0][1],)),
-            SidebarLine(text=_("1-2 h"), swatches=(AGE_BANDS[1][1],)),
-            SidebarLine(text=_("2-3 h"), swatches=(AGE_BANDS[2][1],)),
-        ]
+    def legend_key(self):
+        return key(
+            (AGE_BANDS[0][1], _("< 1 h")),
+            (AGE_BANDS[1][1], _("1-2 h")),
+            (AGE_BANDS[2][1], _("2-3 h")),
+        )
 
     def info_rows(self) -> list[tuple[str, str]]:
         item = self.selected

@@ -8,11 +8,11 @@ import json
 import time
 from datetime import datetime, timezone
 
-from terrascope.core.layer import LayerRender, Marker, SidebarLine
+from terrascope.core.layer import LayerRender, Marker
 
 from terrascope_br import store
 from terrascope_br._i18n import _
-from terrascope_br.base import SourceLayer
+from terrascope_br.base import SourceLayer, key
 from terrascope_br.sources.ibge import ensure_municipality_names, municipality_names
 from terrascope_br.net import SourceError, get
 
@@ -114,20 +114,20 @@ class RainGaugeLayer(SourceLayer):
         return selected is not None and selected.get("lat") == reading["lat"] \
             and selected.get("lon") == reading["lon"] and selected.get("station") == reading["station"]
 
-    def legend_rows(self) -> list[SidebarLine]:
-        return [
-            SidebarLine(text=_("0 mm"), swatches=(DRY_COLOR,)),
-            SidebarLine(text=_("0-2 mm"), swatches=(RAIN_BANDS[0][1],)),
-            SidebarLine(text=_("2-10 mm"), swatches=(RAIN_BANDS[1][1],)),
-            SidebarLine(text=_("10-25 mm"), swatches=(RAIN_BANDS[2][1],)),
-            SidebarLine(text=_("over 25 mm"), swatches=(RAIN_BANDS[3][1],)),
-        ]
+    def legend_key(self):
+        return key(
+            (DRY_COLOR, _("0 mm")),
+            (RAIN_BANDS[0][1], _("0-2")),
+            (RAIN_BANDS[1][1], _("2-10")),
+            (RAIN_BANDS[2][1], _("10-25")),
+            (RAIN_BANDS[3][1], _("25+ mm")),
+        )
 
     def info_rows(self) -> list[tuple[str, str]]:
         reading = self.selected
         if not reading:
             return []
-        updated = "N/A"
+        updated = _("N/A")
         if reading.get("updated") is not None:
             updated = datetime.fromtimestamp(reading["updated"], timezone.utc).strftime("%d/%m %H:%M UTC")
         return [

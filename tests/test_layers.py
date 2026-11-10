@@ -36,14 +36,15 @@ def test_failed_fetch_keeps_the_old_cache(cache, monkeypatch):
 
     monkeypatch.setattr(iag, "get", down)
     store.write_bytes(store.path("iag", "quakes.txt"), (DATA / "iag_quakes.txt").read_bytes())
+    store.write_bytes(store.path("iag", "source.txt"), b"IAG-USP")
     layer = iag.QuakeLayer()
     layer.enabled = True
     with pytest.raises(SourceError):
         layer.refresh_if_due(force=True)
-    assert layer.error == "HTTP 503"
+    assert layer.error == "IAG-USP: HTTP 503; USGS: HTTP 503"
     layer.reload()
     assert layer.items, "the last good data stays on screen"
-    assert "updated" in layer.status or "no update since" in layer.status
+    assert layer.status.startswith("update failed")  # the old data stays, the failure is said
 
 
 def test_no_data_and_failed_fetch_is_announced_in_the_legend(cache, monkeypatch):
@@ -92,12 +93,12 @@ def test_fire_selection_survives_a_reload(cache):
     assert "LOCAL" in rows and "UTC" in rows
 
 
-def test_legend_has_title_status_and_credit(cache):
+def test_legend_has_the_title_and_no_credit_line(cache):
     layer = iag.QuakeLayer()
     layer.reload()
-    texts = [line.text for line in layer.legend_lines()]
-    assert texts[0] == layer.source_name
-    assert "IAG-USP" in texts[-1]
+    lines = layer.legend_lines()
+    assert lines[0].text == layer.source_name
+    assert all(line.text != layer.credit for line in lines)  # the credit is in the tab attribution
 
 
 def test_municipality_names_come_from_the_cache_only(cache):

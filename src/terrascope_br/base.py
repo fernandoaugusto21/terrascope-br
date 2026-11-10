@@ -1,9 +1,12 @@
 """Shared shape of the BR layers.
 
 Data lives in the cache directory. `fetch()` writes it (background thread,
-via Layer.tick / refresh_if_due); `load()` reads it back on the UI thread
-(reload). A failed fetch keeps the old cache, shows the reason in the legend,
-and never raises into the screen."""
+via Layer.tick / refresh_if_due); `parse()` reads it back on the UI thread
+(reload). A failed fetch keeps the old cache and says why in the legend; a
+failure never raises into the screen.
+
+The legend of a layer is at most two lines: its title, then either its colour
+key or, when something is wrong with the data, that message."""
 
 from __future__ import annotations
 
@@ -17,13 +20,19 @@ from terrascope_br import store
 from terrascope_br._i18n import _
 from terrascope_br.net import SourceError
 
+SWATCH = "■"  # the glyph drawn in front of each colour of a legend key
+
 def utc_text(epoch: float) -> str:
     return datetime.fromtimestamp(epoch, timezone.utc).strftime("%d/%m %H:%M UTC")
+
+def key(*pairs: tuple[str, str]) -> tuple[tuple[str, str, str], ...]:
+    """A legend key from (colour, label) pairs."""
+    return tuple((SWATCH, colour, label) for colour, label in pairs)
 
 class SourceLayer(Layer):
     enabled = False            # only on while the BRASIL tab is active
     source_name = ""           # legend title, e.g. "INPE fires"
-    credit = ""                # shown in the tab attribution and the legend
+    credit = ""                # shown in the tab attribution, not in the legend
     refresh_seconds = 600      # minimum time between two fetches
     stale_after_seconds = 1800 # older data is announced as "no update since"
     fetch_timeout = 30.0
@@ -33,7 +42,7 @@ class SourceLayer(Layer):
         self.items: list = []
         self.data_time: float | None = None   # epoch of the data shown
         self.error = ""                       # reason of the last failed fetch
-        self.status = ""                      # legend line about freshness
+        self.status = ""                      # what the legend says when data is not fine
 
     # -- what each source implements ------------------------------------------------
     def stamp_file(self):
@@ -65,8 +74,7 @@ class SourceLayer(Layer):
             self.fetch()
         except SourceError as error:
             self.error = str(error)
-            # Let the base class back off and retry; the message is in the legend.
-            raise
+            raise  # the base class backs off and retries
         self.error = ""
         return True
 
@@ -84,23 +92,36 @@ class SourceLayer(Layer):
         self.status = ""
         self.dirty = True
 
+    def is_stale(self) -> bool:
+        return self.data_time is not None and time.time() - self.data_time > self.stale_after_seconds
+
+    def has_problem(self) -> bool:
+        """True when the legend must show a message instead of the colour key."""
+        return bool(self.error) or self.data_time is None or self.is_stale()
+
     def freshness_text(self) -> str:
         if self.data_time is None:
             if self.error:
                 return _("unavailable: %s") % self.error
             return _("no data yet")
-        if time.time() - self.data_time > self.stale_after_seconds:
+        if self.error:
+            return _("update failed: %s") % self.error
+        if self.is_stale():
             return _("no update since %s") % utc_text(self.data_time)
         return _("updated %s") % utc_text(self.data_time)
 
     # -- legend and info box ---------------------------------------------------------
-    def legend_lines(self) -> list[SidebarLine]:
-        lines = [SidebarLine(text=self.source_name, bold=True)]
-        lines.extend(self.legend_rows())
-        lines.append(SidebarLine(text=self.status))
-        if self.credit:
-            lines.append(SidebarLine(text=self.credit))
-        return lines
+    def legend_key(self) -> tuple[tuple[str, str, str], ...]:
+        """(glyph, colour, label) items of the colour key; empty = no key."""
+        return ()
 
-    def legend_rows(self) -> list[SidebarLine]:
-        return []
+    def legend_title(self) -> str:
+        return self.source_name
+
+    def legend_lines(self) -> list[SidebarLine]:
+        lines = [SidebarLine(text=self.legend_title(), bold=True)]
+        if self.has_problem():
+            lines.append(SidebarLine(text=self.status))
+        elif self.legend_key():
+            lines.append(SidebarLine(text="", legend_items=self.legend_key()))
+        return lines

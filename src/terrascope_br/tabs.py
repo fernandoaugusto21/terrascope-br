@@ -22,5 +22,6 @@ def brasil_tabs() -> list[dict]:
             ],
             "detailed": True,
             "attribution": _("Data: IBGE, INPE, IAG-USP, SP Águas"),
+            "view": {"lat": -14, "lon": -52, "zoom": 3},
         }
     ]
