@@ -1,0 +1,249 @@
+# Portuguese (Brazil) translations for terrascope-br.
+# Copyright (C) 2026 ORGANIZATION
+# This file is distributed under the same license as the terrascope-br project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: terrascope-br 0.1.0\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2026-11-10 20:08-0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language: pt_BR\n"
+"Language-Team: pt_BR <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#: src/terrascope_br/base.py:108
+#, python-format
+msgid "unavailable: %s"
+msgstr "indisponível: %s"
+
+#: src/terrascope_br/base.py:110
+#, python-format
+msgid "cache unreadable: %s"
+msgstr "cache ilegível: %s"
+
+#: src/terrascope_br/base.py:111
+msgid "no data yet"
+msgstr "sem dados ainda"
+
+#: src/terrascope_br/base.py:113
+#, python-format
+msgid "update failed: %s"
+msgstr "falha na atualização: %s"
+
+#: src/terrascope_br/base.py:115
+#, python-format
+msgid "no update since %s"
+msgstr "sem atualização desde %s"
+
+#: src/terrascope_br/base.py:116
+#, python-format
+msgid "updated %s"
+msgstr "atualizado %s"
+
+#: src/terrascope_br/tabs.py:13
+msgid "Brazil: state and city outlines, fires, quakes, rain gauges and radar"
+msgstr ""
+"Brasil: contornos de estados e municípios, focos, sismos, pluviômetros e "
+"radar"
+
+#: src/terrascope_br/tabs.py:24
+msgid "Data: IBGE, INPE, IAG-USP, SP Águas"
+msgstr "Dados: IBGE, INPE, IAG-USP, SP Águas"
+
+#: src/terrascope_br/sources/chuva_online.py:87
+msgid "Chuva Online radar, 36 km"
+msgstr "radar Chuva Online, 36 km"
+
+#: src/terrascope_br/sources/chuva_online.py:88
+msgid "RADAR"
+msgstr "RADAR"
+
+#: src/terrascope_br/sources/chuva_online.py:176
+msgid "weak"
+msgstr "fraca"
+
+#: src/terrascope_br/sources/chuva_online.py:177
+msgid "moderate"
+msgstr "moderada"
+
+#: src/terrascope_br/sources/chuva_online.py:178
+msgid "strong"
+msgstr "forte"
+
+#: src/terrascope_br/sources/iag.py:47
+msgid "USGS (fallback)"
+msgstr "USGS (reserva)"
+
+#: src/terrascope_br/sources/iag.py:92 src/terrascope_br/sources/iag.py:124
+msgid "unknown place"
+msgstr "local desconhecido"
+
+#: src/terrascope_br/sources/iag.py:132
+msgid "IAG-USP quakes, 30 days"
+msgstr "sismos do IAG-USP, 30 dias"
+
+#: src/terrascope_br/sources/iag.py:133
+msgid "QUAKE"
+msgstr "SISMO"
+
+#: src/terrascope_br/sources/iag.py:189
+msgid "USGS quakes (fallback), 30 days"
+msgstr "sismos do USGS (reserva), 30 dias"
+
+#: src/terrascope_br/sources/iag.py:205
+msgid "< 3"
+msgstr "< 3"
+
+#: src/terrascope_br/sources/iag.py:206
+msgid "3-4.4"
+msgstr "3-4,4"
+
+#: src/terrascope_br/sources/iag.py:207
+msgid "4.5-5.9"
+msgstr "4,5-5,9"
+
+#: src/terrascope_br/sources/iag.py:208
+msgid "6+"
+msgstr "6+"
+
+#: src/terrascope_br/sources/iag.py:216 src/terrascope_br/sources/iag.py:217
+#: src/terrascope_br/sources/spaguas.py:130
+msgid "N/A"
+msgstr "n/d"
+
+#: src/terrascope_br/sources/iag.py:219
+msgid "SOURCE"
+msgstr "FONTE"
+
+#: src/terrascope_br/sources/iag.py:220
+msgid "MAGNITUDE"
+msgstr "MAGNITUDE"
+
+#: src/terrascope_br/sources/iag.py:221
+msgid "PLACE"
+msgstr "LOCAL"
+
+#: src/terrascope_br/sources/iag.py:222
+msgid "DEPTH"
+msgstr "PROFUNDIDADE"
+
+#: src/terrascope_br/sources/iag.py:223 src/terrascope_br/sources/inpe.py:155
+msgid "UTC"
+msgstr "UTC"
+
+#: src/terrascope_br/sources/iag.py:224 src/terrascope_br/sources/inpe.py:156
+msgid "LOCAL"
+msgstr "LOCAL"
+
+#: src/terrascope_br/sources/iag.py:225 src/terrascope_br/sources/inpe.py:158
+msgid "POSITION"
+msgstr "POSIÇÃO"
+
+#: src/terrascope_br/sources/ibge.py:117
+msgid "IBGE states"
+msgstr "estados do IBGE"
+
+#: src/terrascope_br/sources/ibge.py:118
+msgid "STATE"
+msgstr "ESTADO"
+
+#: src/terrascope_br/sources/ibge.py:125
+msgid "IBGE municipalities"
+msgstr "municípios do IBGE"
+
+#: src/terrascope_br/sources/ibge.py:126
+msgid "MUNICIPALITY"
+msgstr "MUNICÍPIO"
+
+#: src/terrascope_br/sources/inpe.py:72
+msgid "INPE fires, 3 h"
+msgstr "focos do INPE, 3 h"
+
+#: src/terrascope_br/sources/inpe.py:73
+msgid "FIRE"
+msgstr "FOCO"
+
+#: src/terrascope_br/sources/inpe.py:141
+msgid "< 1 h"
+msgstr "< 1 h"
+
+#: src/terrascope_br/sources/inpe.py:142
+msgid "1-2 h"
+msgstr "1-2 h"
+
+#: src/terrascope_br/sources/inpe.py:143
+msgid "2-3 h"
+msgstr "2-3 h"
+
+#: src/terrascope_br/sources/inpe.py:154
+msgid "SATELLITE"
+msgstr "SATÉLITE"
+
+#: src/terrascope_br/sources/inpe.py:157
+msgid "AGE"
+msgstr "IDADE"
+
+#: src/terrascope_br/sources/spaguas.py:61
+msgid "unnamed station"
+msgstr "estação sem nome"
+
+#: src/terrascope_br/sources/spaguas.py:62 src/terrascope_br/sources/spaguas.py:63
+msgid "unknown"
+msgstr "desconhecido"
+
+#: src/terrascope_br/sources/spaguas.py:71
+msgid "SP Águas rain gauges, 1 h"
+msgstr "pluviômetros da SP Águas, 1 h"
+
+#: src/terrascope_br/sources/spaguas.py:72
+msgid "RAIN GAUGE"
+msgstr "PLUVIÔMETRO"
+
+#: src/terrascope_br/sources/spaguas.py:119
+msgid "0 mm"
+msgstr "0 mm"
+
+#: src/terrascope_br/sources/spaguas.py:120
+msgid "0-2"
+msgstr "0-2"
+
+#: src/terrascope_br/sources/spaguas.py:121
+msgid "2-10"
+msgstr "2-10"
+
+#: src/terrascope_br/sources/spaguas.py:122
+msgid "10-25"
+msgstr "10-25"
+
+#: src/terrascope_br/sources/spaguas.py:123
+msgid "25+ mm"
+msgstr "25+ mm"
+
+#: src/terrascope_br/sources/spaguas.py:134
+msgid "STATION"
+msgstr "ESTAÇÃO"
+
+#: src/terrascope_br/sources/spaguas.py:135
+msgid "OWNER"
+msgstr "DONO"
+
+#: src/terrascope_br/sources/spaguas.py:136
+msgid "CITY"
+msgstr "MUNICÍPIO"
+
+#: src/terrascope_br/sources/spaguas.py:137
+msgid "LAST HOUR"
+msgstr "ÚLTIMA HORA"
+
+#: src/terrascope_br/sources/spaguas.py:138
+msgid "UPDATED"
+msgstr "ATUALIZADO"
+

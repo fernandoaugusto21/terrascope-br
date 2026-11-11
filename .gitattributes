@@ -1,0 +1,4 @@
+# Babel reads these as text: keep LF in the repository and in the checkout.
+babel.cfg text eol=lf
+*.po text eol=lf
+*.pot text eol=lf

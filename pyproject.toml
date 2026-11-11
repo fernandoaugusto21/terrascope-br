@@ -1,0 +1,49 @@
+[build-system]
+# Babel compiles the translation catalogues (hatch_build.py).
+requires = ["hatchling", "babel>=2.12"]
+build-backend = "hatchling.build"
+
+[project]
+name = "terrascope-br"
+version = "0.1.0"
+description = "Brazilian data layers and a BRASIL tab for Terrascope."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Fernando Augusto", email = "dev.fernandoaugusto@outlook.com" }]
+keywords = ["terrascope", "plugin", "brazil", "map", "terminal"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Terminals",
+]
+# terrascope>=1.0.0 is the lowest version pip can check, and it is not enough: the
+# 1.0.0 release on PyPI has no plugin support, so this package would install on it
+# and its tab would never appear. Until a Terrascope release with plugins is on PyPI,
+# install that build first, from its repository at a fixed commit (see README), and
+# run `python -m terrascope_br` to check. Then raise this bound to that release.
+# Do not put a direct URL here.
+dependencies = [
+    "terrascope>=1.0.0",
+    "numpy>=1.24",
+    "Pillow>=10.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.entry-points."terrascope.tabs"]
+brasil = "terrascope_br.tabs:brasil_tabs"
+
+[project.entry-points."terrascope.layers"]
+br_ufs = "terrascope_br.sources.ibge:StateOutlinesLayer"
+br_municipios = "terrascope_br.sources.ibge:MunicipalityOutlinesLayer"
+br_fires = "terrascope_br.sources.inpe:FireLayer"
+br_quakes = "terrascope_br.sources.iag:QuakeLayer"
+br_gauges = "terrascope_br.sources.spaguas:RainGaugeLayer"
+br_radar = "terrascope_br.sources.chuva_online:RadarLayer"
+
+[tool.hatch.build.hooks.custom]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/terrascope_br"]
