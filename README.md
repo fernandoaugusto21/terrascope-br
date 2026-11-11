@@ -8,9 +8,17 @@ Requires a Terrascope build with layer and tab plugin support (entry points `ter
 
 ## Install
 
-    pip install -e .                 # from a checkout, in the same environment as terrascope
+Terrascope 1.0.0 on PyPI has no plugin support, so install a Terrascope build with plugins first, from the fork at a
+fixed commit:
+
+    pip install "terrascope @ git+https://github.com/fernandoaugusto21/Terrascope@d10ce09880983148941ffccae28daaff437d3ae6"
+    pip install -e .                 # from a checkout of this repository, in the same environment
+    python -m terrascope_br          # checks that the core has plugins, and that the tab and its layers are registered
     terrascope --list-tabs           # BRASIL appears with origin plugin:terrascope-br
     terrascope -t brasil             # open the tab (it starts on Brazil)
+
+`python -m terrascope_br` exits with 1 and says what is missing when a line of the check fails. The commit above is the
+one this package was tested against: update it when the plugin support of Terrascope moves to another commit.
 
 `pip uninstall terrascope-br` removes the tab and the layers again.
 
