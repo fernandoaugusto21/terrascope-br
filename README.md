@@ -4,14 +4,15 @@ Brazilian data layers for [Terrascope](https://github.com/a-shygun/Terrascope), 
 **BRASIL** tab with public Brazilian sources. Terrascope itself does not need to change for it to load.
 
 Requires a Terrascope build with layer and tab plugin support (entry points `terrascope.layers` and
-`terrascope.tabs`), with the translation support and the home view of tabs. Those are not in a released version yet.
+`terrascope.tabs`), with the translation support and the home view of tabs. Those are on the `main` branch of the
+fork, and not in a released version yet.
 
 ## Install
 
-Terrascope 1.0.0 on PyPI has no plugin support, so install a Terrascope build with plugins first, from the fork, at the
-branch that carries them:
+Terrascope 1.0.0 on PyPI has no plugin support, so install a Terrascope build with plugins first, from the fork's `main`
+branch:
 
-    pip install "terrascope @ git+https://github.com/fernandoaugusto21/Terrascope@fb-layer-plugins"
+    pip install "terrascope @ git+https://github.com/fernandoaugusto21/Terrascope@main"
     pip install -e .                 # from a checkout of this repository, in the same environment
     python -m terrascope_br          # checks that the core has plugins, and that the tab and its layers are registered
     terrascope --list-tabs           # BRASIL appears with origin plugin:terrascope-br
@@ -19,8 +20,7 @@ branch that carries them:
 
 `python -m terrascope_br` exits with 1 and says what is missing when a line of the check fails.
 
-Note: the install points at the branch `fb-layer-plugins`, not at a fixed commit. When that branch is merged, this line
-changes to `main` or to the release tag that carries the plugin support.
+When a release with plugin support is out, this line changes to that release.
 
 `pip uninstall terrascope-br` removes the tab and the layers again.
 
