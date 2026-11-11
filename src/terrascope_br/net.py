@@ -12,7 +12,7 @@ import urllib.request
 import zlib
 from urllib.parse import urlsplit
 
-from terrascope.core.config import USER_AGENT
+from terrascope.core import config
 
 MAX_BYTES = 40 * 1024 * 1024  # no source here is bigger than this
 
@@ -46,7 +46,7 @@ def get(url: str, timeout: float, *, min_gap: float = 1.0,
         if_modified_since: str | None = None) -> tuple[int, bytes, dict]:
     """GET `url`. Returns (status, body, headers); status 304 means the copy
     the caller has is still current (body is b""). Raises SourceError."""
-    headers = {"User-Agent": USER_AGENT, "Accept": "*/*", "Accept-Encoding": "gzip"}
+    headers = {"User-Agent": config.USER_AGENT, "Accept": "*/*", "Accept-Encoding": "gzip"}
     if if_modified_since:
         headers["If-Modified-Since"] = if_modified_since
     _pace(url, min_gap)

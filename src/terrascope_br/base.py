@@ -13,7 +13,7 @@ from __future__ import annotations
 import time
 from datetime import datetime, timezone
 
-from terrascope.core.config import FETCH_NEW_DATA_FROM_API
+from terrascope.core import config
 from terrascope.core.layer import Layer, SidebarLine
 
 from terrascope_br import store
@@ -66,7 +66,7 @@ class SourceLayer(Layer):
         return age is None or age >= self.refresh_seconds
 
     def refresh_if_due(self, force: bool = False) -> bool:
-        if not self.enabled or not FETCH_NEW_DATA_FROM_API:
+        if not self.enabled or not config.FETCH_NEW_DATA_FROM_API:
             return False
         if not force and not self.is_due():
             return False
