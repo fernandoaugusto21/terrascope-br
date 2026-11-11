@@ -1,4 +1,5 @@
-"""Regression tests for the code review of round 3 (items 21 to 29)."""
+"""Regression tests for the BRASIL fixes: the municipality download gate, the live
+legend, the cache and network edge cases, and the antimeridian and parse caching."""
 
 import http.client
 import json
