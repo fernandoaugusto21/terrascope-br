@@ -86,16 +86,11 @@ The tests read trimmed samples from `tests/data` (see the README there) and do n
 
 ## Sources and terms
 
-Each source keeps its own terms. What was checked on 2026-11-10:
-
-- IBGE: the terms page could not be read (HTTP 403); the API index page has no terms. Not verified.
-- INPE Queimadas: the terms page moved and the new address returned 404. Not verified.
-- IAG-USP (seismology catalogue and Chuva Online): no terms or reuse conditions published on the pages checked.
-- SP Águas (SIBH): no terms or reuse conditions published on the page checked.
-- USGS (earthquake feed, fallback): not checked in this round.
-
-Credits are shown in the BRASIL tab attribution.
+Each source keeps its own terms. [`docs/data-terms.md`](docs/data-terms.md) lists, for each endpoint the plugin
+reads, what the source publishes about reuse, attribution, request limits, commercial use and caching, with the URL
+and access date of every statement. Where a source publishes no terms, the document says so. The credits are shown in
+the BRASIL tab attribution.
 
 ## License
 
-MIT. Each data source keeps its own terms; see the credits shown in the app.
+MIT. Each data source keeps its own terms; see [`docs/data-terms.md`](docs/data-terms.md) and the credits shown in the app.
