@@ -4,7 +4,8 @@ import importlib.metadata
 
 from terrascope_br.tabs import brasil_tabs
 
-LAYER_NAMES = {"br_ufs", "br_municipios", "br_fires", "br_quakes", "br_gauges", "br_radar"}
+LAYER_NAMES = {"br_ufs", "br_municipios", "br_fires", "br_quakes", "br_gauges", "br_radar",
+                "br_inmet_alerts"}
 
 
 def _ours(group):

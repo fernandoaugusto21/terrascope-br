@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: terrascope-br 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-10 20:08-0300\n"
+"POT-Creation-Date: 2026-11-14 16:06-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -49,8 +49,8 @@ msgstr ""
 msgid "Brazil: state and city outlines, fires, quakes, rain gauges and radar"
 msgstr ""
 
-#: src/terrascope_br/tabs.py:24
-msgid "Data: IBGE, INPE, IAG-USP, SP Águas"
+#: src/terrascope_br/tabs.py:25
+msgid "Data: IBGE, INPE, IAG-USP, SP Águas, INMET"
 msgstr ""
 
 #: src/terrascope_br/sources/chuva_online.py:87
@@ -110,6 +110,8 @@ msgid "6+"
 msgstr ""
 
 #: src/terrascope_br/sources/iag.py:216 src/terrascope_br/sources/iag.py:217
+#: src/terrascope_br/sources/inmet.py:235
+#: src/terrascope_br/sources/inmet.py:237
 #: src/terrascope_br/sources/spaguas.py:130
 msgid "N/A"
 msgstr ""
@@ -158,6 +160,42 @@ msgstr ""
 msgid "MUNICIPALITY"
 msgstr ""
 
+#: src/terrascope_br/sources/inmet.py:83
+msgid "unnamed warning"
+msgstr ""
+
+#: src/terrascope_br/sources/inmet.py:156
+msgid "INMET warnings"
+msgstr ""
+
+#: src/terrascope_br/sources/inmet.py:157
+msgid "WARNING"
+msgstr ""
+
+#: src/terrascope_br/sources/inmet.py:224
+msgid "no active warnings"
+msgstr ""
+
+#: src/terrascope_br/sources/inmet.py:234
+msgid "EVENT"
+msgstr ""
+
+#: src/terrascope_br/sources/inmet.py:235
+msgid "SEVERITY"
+msgstr ""
+
+#: src/terrascope_br/sources/inmet.py:236
+msgid "VALID"
+msgstr ""
+
+#: src/terrascope_br/sources/inmet.py:237
+msgid "STATES"
+msgstr ""
+
+#: src/terrascope_br/sources/inmet.py:238
+msgid "MUNICIPALITIES"
+msgstr ""
+
 #: src/terrascope_br/sources/inpe.py:72
 msgid "INPE fires, 3 h"
 msgstr ""
@@ -190,7 +228,8 @@ msgstr ""
 msgid "unnamed station"
 msgstr ""
 
-#: src/terrascope_br/sources/spaguas.py:62 src/terrascope_br/sources/spaguas.py:63
+#: src/terrascope_br/sources/spaguas.py:62
+#: src/terrascope_br/sources/spaguas.py:63
 msgid "unknown"
 msgstr ""
 
