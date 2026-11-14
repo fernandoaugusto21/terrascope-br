@@ -142,8 +142,12 @@ def test_a_broken_deflate_body_becomes_a_source_error():
 
 def test_unchanged_frames_and_one_failure_is_not_a_failed_fetch(cache, monkeypatch):
     layer = chuva_online.RadarLayer()
-    store.write_bytes(layer.stamp_file(), json.dumps({"fetched": time.time(), "modified": {"1": time.time()}}).encode())
-    store.write_bytes(store.path("chuva_online", "loop_1.png"), (DATA / "chuva_loop10.png").read_bytes())
+    epoch = int(time.time())
+    store.write_bytes(chuva_online._frame_file(epoch), (DATA / "chuva_loop10.png").read_bytes())
+    store.write_bytes(layer.stamp_file(), json.dumps({
+        "version": chuva_online.MANIFEST_VERSION, "fetched": time.time(),
+        "slots": {"1": epoch}, "frames": [epoch],
+    }).encode())
 
     def answer(url, timeout, **kwargs):
         if url.endswith("_1.png"):

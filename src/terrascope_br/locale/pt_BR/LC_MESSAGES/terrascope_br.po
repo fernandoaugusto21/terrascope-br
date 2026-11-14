@@ -58,23 +58,27 @@ msgstr ""
 msgid "Data: IBGE, INPE, IAG-USP, SP Águas"
 msgstr "Dados: IBGE, INPE, IAG-USP, SP Águas"
 
-#: src/terrascope_br/sources/chuva_online.py:87
+#: src/terrascope_br/sources/chuva_online.py:138
 msgid "Chuva Online radar, 36 km"
 msgstr "radar Chuva Online, 36 km"
 
-#: src/terrascope_br/sources/chuva_online.py:88
+#: src/terrascope_br/sources/chuva_online.py:139 src/terrascope_br/sources/chuva_online.py:264 src/terrascope_br/sources/chuva_online.py:268
 msgid "RADAR"
 msgstr "RADAR"
 
-#: src/terrascope_br/sources/chuva_online.py:176
+#: src/terrascope_br/sources/chuva_online.py:267
+msgid "LIVE"
+msgstr "AO VIVO"
+
+#: src/terrascope_br/sources/chuva_online.py:295
 msgid "weak"
 msgstr "fraca"
 
-#: src/terrascope_br/sources/chuva_online.py:177
+#: src/terrascope_br/sources/chuva_online.py:296
 msgid "moderate"
 msgstr "moderada"
 
-#: src/terrascope_br/sources/chuva_online.py:178
+#: src/terrascope_br/sources/chuva_online.py:297
 msgid "strong"
 msgstr "forte"
 
