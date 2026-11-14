@@ -1,9 +1,14 @@
 """Chuva Online frame decoding, colouring and the stale-data rule."""
 
+import json
 import time
 from pathlib import Path
 
+import pytest
+
+from terrascope.core import config
 from terrascope.core.view import View
+from terrascope_br import store
 from terrascope_br.sources import chuva_online as radar
 
 DATA = Path(__file__).parent / "data"
@@ -35,18 +40,30 @@ def test_view_outside_the_box_has_no_cells():
     assert radar.cell_colours(rgb, mask, View(10.0, 40.0, 16.0, 182, 50)) == {}
 
 
-def test_old_frame_is_hidden_and_announced():
+@pytest.fixture
+def cache(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "CACHE_DIR", tmp_path)
+    return tmp_path
+
+
+def _layer_with_frame(epoch: int) -> radar.RadarLayer:
+    """A layer whose cache holds the sample frame, stamped with `epoch`."""
+    store.write_bytes(radar._frame_file(epoch), (DATA / "chuva_loop10.png").read_bytes())
+    store.write_bytes(store.path("chuva_online", "frames.json"), json.dumps({
+        "version": radar.MANIFEST_VERSION, "fetched": time.time(),
+        "slots": {"1": epoch}, "frames": [epoch],
+    }).encode("utf-8"))
     layer = radar.RadarLayer()
-    rgb, mask = _frame()
-    layer.items = [{"rgb": rgb, "mask": mask}]
-    layer.data_time = time.time() - 2 * 3600
+    layer.reload()
+    return layer
+
+
+def test_old_frame_is_hidden_and_announced(cache):
+    layer = _layer_with_frame(int(time.time()) - 2 * 3600)
     assert not layer.build(View(*SAO_PAULO_VIEW)).bg_cells
     assert layer.status.startswith("no update since")
 
 
-def test_fresh_frame_is_drawn():
-    layer = radar.RadarLayer()
-    rgb, mask = _frame()
-    layer.items = [{"rgb": rgb, "mask": mask}]
-    layer.data_time = time.time() - 300
+def test_fresh_frame_is_drawn(cache):
+    layer = _layer_with_frame(int(time.time()) - 300)
     assert layer.build(View(*SAO_PAULO_VIEW)).bg_cells
