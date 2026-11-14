@@ -5,7 +5,7 @@ import time
 import pytest
 
 from terrascope.core.config import CFG  # noqa: F401  (settings are loaded)
-from terrascope_br.sources import chuva_online, iag, ibge, inpe, spaguas
+from terrascope_br.sources import chuva_online, iag, ibge, inmet, inpe, spaguas
 
 
 def _layers():
@@ -21,7 +21,9 @@ def _layers():
     radar.items = []
     states = ibge.StateOutlinesLayer()
     municipalities = ibge.MunicipalityOutlinesLayer()
-    return [fires, quakes, gauges, radar, states, municipalities]
+    warnings = inmet.InmetAlertsLayer()
+    warnings.items = []
+    return [fires, quakes, gauges, radar, states, municipalities, warnings]
 
 
 @pytest.mark.parametrize("layer", _layers(), ids=lambda layer: layer.name)

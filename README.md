@@ -34,6 +34,7 @@ When a release with plugin support is out, this line changes to that release.
 | `br_quakes` | B | IAG-USP catalogue, or USGS if IAG-USP fails | 30 min | last 30 days, Brazil and neighbours |
 | `br_gauges` | G | SP Águas, rain gauges | 10 min | rain in the last hour, city from the IBGE code |
 | `br_radar` | T | IAG-USP Chuva Online, 36 km radar | 10 min | hidden when the newest frame is over 30 min old |
+| `br_inmet_alerts` | V | INMET, active weather warnings | 30 min | warnings of today and the next days, as areas; hidden when the data is over 1 h old |
 
 The municipality names used by the gauges come from the IBGE localities list (kept 30 days).
 
@@ -44,6 +45,13 @@ query fails (network error, HTTP error, empty or unreadable answer), the layer u
 same box and window. The legend title and the info box of each quake say which source is in use
 (`IAG-USP` or `USGS (fallback)`). If both fail, the layer keeps its last good data, or stays empty with the reason in
 the legend when there is none.
+
+### Weather warnings
+
+The INMET layer draws the area of each active warning, filled with the warning's own colour (`aviso_cor`), and a
+`!` marker at the middle of the area's box. The legend has one entry per colour in the data, labelled with its
+severity. A warning that appears in both lists of the API (today and the next days) is drawn once. Warnings with no
+area are left out. The API gives the start and end times without a time zone; they are shown as they come.
 
 ## Legend
 
@@ -93,6 +101,7 @@ Each source keeps its own terms. What was checked on 2026-11-10:
 - IAG-USP (seismology catalogue and Chuva Online): no terms or reuse conditions published on the pages checked.
 - SP Águas (SIBH): no terms or reuse conditions published on the page checked.
 - USGS (earthquake feed, fallback): not checked in this round.
+- INMET (warnings API, `apiprevmet3.inmet.gov.br`): not checked in this round.
 
 Credits are shown in the BRASIL tab attribution.
 

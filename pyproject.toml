@@ -42,6 +42,7 @@ br_fires = "terrascope_br.sources.inpe:FireLayer"
 br_quakes = "terrascope_br.sources.iag:QuakeLayer"
 br_gauges = "terrascope_br.sources.spaguas:RainGaugeLayer"
 br_radar = "terrascope_br.sources.chuva_online:RadarLayer"
+br_inmet_alerts = "terrascope_br.sources.inmet:InmetAlertsLayer"
 
 [tool.hatch.build.hooks.custom]
 

@@ -19,9 +19,10 @@ def brasil_tabs() -> list[dict]:
                 "br_quakes",
                 "br_gauges",
                 "br_radar",
+                "br_inmet_alerts",
             ],
             "detailed": True,
-            "attribution": _("Data: IBGE, INPE, IAG-USP, SP Águas"),
+            "attribution": _("Data: IBGE, INPE, IAG-USP, SP Águas, INMET"),
             "view": {"lat": -14, "lon": -52, "zoom": 3},
         }
     ]
