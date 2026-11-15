@@ -34,9 +34,39 @@ When a release with plugin support is out, this line changes to that release.
 | `br_quakes` | B | IAG-USP catalogue, or USGS if IAG-USP fails | 30 min | last 30 days, Brazil and neighbours |
 | `br_gauges` | G | SP Águas, rain gauges | 10 min | rain in the last hour, city from the IBGE code |
 | `br_radar` | T | IAG-USP Chuva Online, 36 km radar | 10 min | hidden when the newest frame is over 30 min old |
+| `br_global_rain` | J | RainViewer radar (the core's frame and palette), inside the Brazil outline | 5 min check, a new frame about every 10 min | dBZ; drawn under `br_radar`; nothing is drawn until the IBGE state map is in the cache |
+| `br_global_temp` | M | Open-Meteo city temperatures (the core's city layer), cities of Brazil only | 15 min per city | relative colours, as on the WEATHER tab; labels replace the basemap city names in this tab |
 | `br_inmet_alerts` | V | INMET, active weather warnings | 30 min | warnings of today and the next days, as areas; hidden when the data is over 1 h old |
 
 The municipality names used by the gauges come from the IBGE localities list (kept 30 days).
+
+### Radar history
+
+The Chuva Online site serves only its last ten frames, as ten files that are rewritten as new frames come (no archive).
+The layer keeps every frame it sees in the last hour and its slider steps through them, as the core's radar slider
+does (`[` and `]`, or the mouse on the slider row; the newest frame is the `LIVE` position). The loop uses the core's
+radar animation settings: `--radar-animate` turns it on, and `frame_seconds` / `frame_hold_last_seconds` under
+`layers.weather.radar` in the config file set the timing.
+The history starts with the ten frames of the first fetch (about 30 minutes) and grows with each fetch.
+
+### Global rain and temperature
+
+These two layers reuse the core's code (`terrascope.layers.weather`): the RainViewer fetch and palette, and the
+city-temperature layer with its label placement. Changes made to the core's weather code reach this tab.
+
+- **Rain** is drawn only inside the outline of Brazil, from the IBGE state map that `br_ufs` keeps in its cache. The
+  layer does not download that map itself: until `br_ufs` has fetched it, the legend says it is waiting. The layer
+  keeps its own copy of the newest RainViewer frame, so while both the WEATHER tab and this layer show rain, the
+  newest frames are downloaded twice. Sharing the core's frame store would avoid it; that is a core change and is not
+  made here.
+- **Rain colours** are the core's RainViewer levels, in dBZ. They are not the IAG-USP colours: the BR radar says
+  weak, moderate or strong, without a unit, and is drawn over the global rain wherever both cover the same cell.
+- **Temperature** labels only the cities of Brazil from the Natural Earth places list. The colours are relative to
+  the coldest and hottest city read so far, as on the WEATHER tab, not to a fixed scale.
+- Each layer has its own switch: the key (J, M) or the `on | off` choice in its legend line. The tab switches the
+  whole layer on.
+- The BRASIL tab hides the basemap's capital and city names (`place_names: false`), because the temperature labels
+  take their place, as the WEATHER tab does.
 
 ### Earthquakes: two sources
 
@@ -70,6 +100,7 @@ the tab is opened; see the plugin section of the Terrascope README.
 - A failed download keeps the last good data, shows the reason in the legend, and backs off before retrying. It
   never raises on screen.
 - Requests use the Terrascope User-Agent, gzip, a 40 MB size cap and at least 1 s between requests to the same host.
+  The global layers use the core's requests, so their limits are the core's.
 - The INPE CSV time column is read as UTC. The file does not say which time zone it uses; the local time shown is
   UTC-3.
 
@@ -94,17 +125,14 @@ The tests read trimmed samples from `tests/data` (see the README there) and do n
 
 ## Sources and terms
 
-Each source keeps its own terms. What was checked on 2026-11-10:
-
-- IBGE: the terms page could not be read (HTTP 403); the API index page has no terms. Not verified.
-- INPE Queimadas: the terms page moved and the new address returned 404. Not verified.
-- IAG-USP (seismology catalogue and Chuva Online): no terms or reuse conditions published on the pages checked.
-- SP Águas (SIBH): no terms or reuse conditions published on the page checked.
-- USGS (earthquake feed, fallback): not checked in this round.
-- INMET (warnings API, `apiprevmet3.inmet.gov.br`): not checked in this round.
-
-Credits are shown in the BRASIL tab attribution.
+Each source keeps its own terms. [`docs/data-terms.md`](docs/data-terms.md) lists, for each endpoint the plugin
+reads, what the source publishes about reuse, attribution, request limits, commercial use and caching, with the URL
+and access date of every statement. Where a source publishes no terms, the document says so. The credits are shown in
+the BRASIL tab attribution.
+RainViewer (global rain) and Open-Meteo (city temperatures), read by the global layers, are not covered by that
+document yet; the core shows their credits on the WEATHER tab, and the BRASIL tab attribution lists them too.
+The INMET warnings API (`apiprevmet3.inmet.gov.br`) is not covered by that document yet.
 
 ## License
 
-MIT. Each data source keeps its own terms; see the credits shown in the app.
+MIT. Each data source keeps its own terms; see [`docs/data-terms.md`](docs/data-terms.md) and the credits shown in the app.
