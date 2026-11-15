@@ -39,6 +39,15 @@ When a release with plugin support is out, this line changes to that release.
 
 The municipality names used by the gauges come from the IBGE localities list (kept 30 days).
 
+### Radar history
+
+The Chuva Online site serves only its last ten frames, as ten files that are rewritten as new frames come (no archive).
+The layer keeps every frame it sees in the last hour and its slider steps through them, as the core's radar slider
+does (`[` and `]`, or the mouse on the slider row; the newest frame is the `LIVE` position). The loop uses the core's
+radar animation settings: `--radar-animate` turns it on, and `frame_seconds` / `frame_hold_last_seconds` under
+`layers.weather.radar` in the config file set the timing.
+The history starts with the ten frames of the first fetch (about 30 minutes) and grows with each fetch.
+
 ### Global rain and temperature
 
 These two layers reuse the core's code (`terrascope.layers.weather`): the RainViewer fetch and palette, and the
@@ -108,18 +117,13 @@ The tests read trimmed samples from `tests/data` (see the README there) and do n
 
 ## Sources and terms
 
-Each source keeps its own terms. What was checked on 2026-11-10:
-
-- IBGE: the terms page could not be read (HTTP 403); the API index page has no terms. Not verified.
-- INPE Queimadas: the terms page moved and the new address returned 404. Not verified.
-- IAG-USP (seismology catalogue and Chuva Online): no terms or reuse conditions published on the pages checked.
-- RainViewer (global rain) and Open-Meteo (city temperatures): not checked in this round. The core already shows
-  their credits in the WEATHER tab, and the BRASIL tab's attribution line lists them too.
-- SP Águas (SIBH): no terms or reuse conditions published on the page checked.
-- USGS (earthquake feed, fallback): not checked in this round.
-
-Credits are shown in the BRASIL tab attribution.
+Each source keeps its own terms. [`docs/data-terms.md`](docs/data-terms.md) lists, for each endpoint the plugin
+reads, what the source publishes about reuse, attribution, request limits, commercial use and caching, with the URL
+and access date of every statement. Where a source publishes no terms, the document says so. The credits are shown in
+the BRASIL tab attribution.
+RainViewer (global rain) and Open-Meteo (city temperatures), read by the global layers, are not covered by that
+document yet; the core shows their credits on the WEATHER tab, and the BRASIL tab attribution lists them too.
 
 ## License
 
-MIT. Each data source keeps its own terms; see the credits shown in the app.
+MIT. Each data source keeps its own terms; see [`docs/data-terms.md`](docs/data-terms.md) and the credits shown in the app.
