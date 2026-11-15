@@ -21,7 +21,7 @@ def brasil_tabs() -> list[dict]:
                 "br_radar",
             ],
             "detailed": True,
-            "attribution": _("Data: IBGE, INPE, IAG-USP, SP Águas"),
+            "attribution": _("Data: IBGE, INPE, IAG-USP, SP Águas, USGS"),
             "view": {"lat": -14, "lon": -52, "zoom": 3},
         }
     ]

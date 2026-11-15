@@ -50,7 +50,7 @@ msgid "Brazil: state and city outlines, fires, quakes, rain gauges and radar"
 msgstr ""
 
 #: src/terrascope_br/tabs.py:24
-msgid "Data: IBGE, INPE, IAG-USP, SP Águas"
+msgid "Data: IBGE, INPE, IAG-USP, SP Águas, USGS"
 msgstr ""
 
 #: src/terrascope_br/sources/chuva_online.py:87

@@ -55,8 +55,8 @@ msgstr ""
 "radar"
 
 #: src/terrascope_br/tabs.py:24
-msgid "Data: IBGE, INPE, IAG-USP, SP Águas"
-msgstr "Dados: IBGE, INPE, IAG-USP, SP Águas"
+msgid "Data: IBGE, INPE, IAG-USP, SP Águas, USGS"
+msgstr "Dados: IBGE, INPE, IAG-USP, SP Águas, USGS"
 
 #: src/terrascope_br/sources/chuva_online.py:87
 msgid "Chuva Online radar, 36 km"
