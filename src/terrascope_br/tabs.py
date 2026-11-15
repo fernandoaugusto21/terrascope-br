@@ -21,11 +21,12 @@ def brasil_tabs() -> list[dict]:
                 "br_quakes",
                 "br_gauges",
                 "br_radar",
+                "br_inmet_alerts",
             ],
             "detailed": True,
             # The city temperature labels take the place of the basemap's city names (as on the WEATHER tab).
             "place_names": False,
-            "attribution": _("Data: IBGE, INPE, IAG-USP, SP Águas, USGS, RainViewer, Open-Meteo"),
+            "attribution": _("Data: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, RainViewer, Open-Meteo"),
             "view": {"lat": -14, "lon": -52, "zoom": 3},
         }
     ]

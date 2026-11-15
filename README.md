@@ -36,6 +36,7 @@ When a release with plugin support is out, this line changes to that release.
 | `br_radar` | T | IAG-USP Chuva Online, 36 km radar | 10 min | hidden when the newest frame is over 30 min old |
 | `br_global_rain` | J | RainViewer radar (the core's frame and palette), inside the Brazil outline | 5 min check, a new frame about every 10 min | dBZ; drawn under `br_radar`; nothing is drawn until the IBGE state map is in the cache |
 | `br_global_temp` | M | Open-Meteo city temperatures (the core's city layer), cities of Brazil only | 15 min per city | relative colours, as on the WEATHER tab; labels replace the basemap city names in this tab |
+| `br_inmet_alerts` | V | INMET, active weather warnings | 30 min | warnings of today and the next days, as areas; hidden when the data is over 1 h old |
 
 The municipality names used by the gauges come from the IBGE localities list (kept 30 days).
 
@@ -74,6 +75,13 @@ query fails (network error, HTTP error, empty or unreadable answer), the layer u
 same box and window. The legend title and the info box of each quake say which source is in use
 (`IAG-USP` or `USGS (fallback)`). If both fail, the layer keeps its last good data, or stays empty with the reason in
 the legend when there is none.
+
+### Weather warnings
+
+The INMET layer draws the area of each active warning, filled with the warning's own colour (`aviso_cor`), and a
+`!` marker at the middle of the area's box. The legend has one entry per colour in the data, labelled with its
+severity. A warning that appears in both lists of the API (today and the next days) is drawn once. Warnings with no
+area are left out. The API gives the start and end times without a time zone; they are shown as they come.
 
 ## Legend
 
@@ -123,6 +131,7 @@ and access date of every statement. Where a source publishes no terms, the docum
 the BRASIL tab attribution.
 RainViewer (global rain) and Open-Meteo (city temperatures), read by the global layers, are not covered by that
 document yet; the core shows their credits on the WEATHER tab, and the BRASIL tab attribution lists them too.
+The INMET warnings API (`apiprevmet3.inmet.gov.br`) is not covered by that document yet.
 
 ## License
 

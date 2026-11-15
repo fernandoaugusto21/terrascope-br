@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: terrascope-br 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-15 17:03-0300\n"
+"POT-Creation-Date: 2026-11-15 17:04-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: pt_BR\n"
@@ -61,9 +61,9 @@ msgstr ""
 "Brasil: contornos de estados e municípios, focos, sismos, pluviômetros, "
 "radar, e chuva e temperatura globais recortadas no Brasil"
 
-#: src/terrascope_br/tabs.py:28
-msgid "Data: IBGE, INPE, IAG-USP, SP Águas, USGS, RainViewer, Open-Meteo"
-msgstr "Dados: IBGE, INPE, IAG-USP, SP Águas, USGS, RainViewer, Open-Meteo"
+#: src/terrascope_br/tabs.py:29
+msgid "Data: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, RainViewer, Open-Meteo"
+msgstr "Dados: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, RainViewer, Open-Meteo"
 
 #: src/terrascope_br/sources/chuva_online.py:138
 msgid "Chuva Online radar, 36 km"
@@ -170,6 +170,8 @@ msgid "6+"
 msgstr "6+"
 
 #: src/terrascope_br/sources/iag.py:216 src/terrascope_br/sources/iag.py:217
+#: src/terrascope_br/sources/inmet.py:235
+#: src/terrascope_br/sources/inmet.py:237
 #: src/terrascope_br/sources/spaguas.py:130
 msgid "N/A"
 msgstr "n/d"
@@ -217,6 +219,42 @@ msgstr "municípios do IBGE"
 #: src/terrascope_br/sources/ibge.py:131
 msgid "MUNICIPALITY"
 msgstr "MUNICÍPIO"
+
+#: src/terrascope_br/sources/inmet.py:83
+msgid "unnamed warning"
+msgstr "aviso sem nome"
+
+#: src/terrascope_br/sources/inmet.py:156
+msgid "INMET warnings"
+msgstr "avisos do INMET"
+
+#: src/terrascope_br/sources/inmet.py:157
+msgid "WARNING"
+msgstr "AVISO"
+
+#: src/terrascope_br/sources/inmet.py:224
+msgid "no active warnings"
+msgstr "sem avisos ativos"
+
+#: src/terrascope_br/sources/inmet.py:234
+msgid "EVENT"
+msgstr "EVENTO"
+
+#: src/terrascope_br/sources/inmet.py:235
+msgid "SEVERITY"
+msgstr "GRAVIDADE"
+
+#: src/terrascope_br/sources/inmet.py:236
+msgid "VALID"
+msgstr "VALIDADE"
+
+#: src/terrascope_br/sources/inmet.py:237
+msgid "STATES"
+msgstr "ESTADOS"
+
+#: src/terrascope_br/sources/inmet.py:238
+msgid "MUNICIPALITIES"
+msgstr "MUNICÍPIOS"
 
 #: src/terrascope_br/sources/inpe.py:72
 msgid "INPE fires, 3 h"
@@ -303,6 +341,12 @@ msgstr "ÚLTIMA HORA"
 msgid "UPDATED"
 msgstr "ATUALIZADO"
 
-#~ msgid "Data: IBGE, INPE, IAG-USP, SP Águas, RainViewer, Open-Meteo"
-#~ msgstr "Dados: IBGE, INPE, IAG-USP, SP Águas, RainViewer, Open-Meteo"
+#~ msgid "Brazil: state and city outlines, fires, quakes, rain gauges and radar"
+#~ msgstr ""
+#~ "Brasil: contornos de estados e "
+#~ "municípios, focos, sismos, pluviômetros e "
+#~ "radar"
+
+#~ msgid "Data: IBGE, INPE, IAG-USP, SP Águas, INMET"
+#~ msgstr "Dados: IBGE, INPE, IAG-USP, SP Águas, INMET"
 
