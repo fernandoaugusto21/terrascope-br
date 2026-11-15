@@ -18,7 +18,7 @@ PACKAGE = "terrascope-br"
 TAB_GROUP = "terrascope.tabs"
 LAYER_GROUP = "terrascope.layers"
 EXPECTED_TABS = ("brasil",)
-EXPECTED_LAYERS = ("br_ufs", "br_municipios", "br_fires", "br_quakes", "br_gauges", "br_radar")
+EXPECTED_LAYERS = ("br_global_rain", "br_global_temp", "br_ufs", "br_municipios", "br_fires", "br_quakes", "br_gauges", "br_radar")
 
 
 def _names_registered_by_this_package(group: str) -> set[str]:

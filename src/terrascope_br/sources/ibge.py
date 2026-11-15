@@ -69,6 +69,11 @@ def _read_rings(file):
         return [], None
     return rings, time.time() - (store.age(file) or 0.0)
 
+def state_rings() -> list:
+    """The state outlines of the cache, read without any download: [] until the
+    map has been fetched once. Other layers use it for their own shapes."""
+    return _read_rings(store.path("ibge", "ufs.geojson"))[0]
+
 class _OutlineLayer(SourceLayer):
     level = "UF"
     cache_name = "ufs.geojson"

@@ -30,12 +30,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "babel>=2.12"]  # babel: the translation test reads the catalogue
 
 [project.entry-points."terrascope.tabs"]
 brasil = "terrascope_br.tabs:brasil_tabs"
 
 [project.entry-points."terrascope.layers"]
+# Plugin layers are drawn in the order importlib.metadata lists their entry points,
+# which is sorted by name: br_global_* sorts before br_radar, so the IAG-USP radar is
+# drawn over the global rain. Renaming these layers changes the draw order (see tests).
+br_global_rain = "terrascope_br.sources.global_weather:GlobalRainLayer"
+br_global_temp = "terrascope_br.sources.global_weather:GlobalTempLayer"
 br_ufs = "terrascope_br.sources.ibge:StateOutlinesLayer"
 br_municipios = "terrascope_br.sources.ibge:MunicipalityOutlinesLayer"
 br_fires = "terrascope_br.sources.inpe:FireLayer"
