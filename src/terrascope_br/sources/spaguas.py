@@ -68,6 +68,7 @@ def parse_measurements(payload: bytes, names: dict[str, tuple[str, str]]) -> lis
 class RainGaugeLayer(SourceLayer):
     name = "br_gauges"
     toggle_key = "g"
+    switch_action = "br_gauges.toggle"  # dense around São Paulo: the user can hide it
     source_name = _("SP Águas rain gauges, 1 h")
     info_title = _("RAIN GAUGE")
     credit = "SP Águas"

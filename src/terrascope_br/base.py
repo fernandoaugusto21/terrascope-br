@@ -6,7 +6,10 @@ via Layer.tick / refresh_if_due); `parse()` reads it back on the UI thread
 failure never raises into the screen.
 
 The legend of a layer is at most two lines: its title, then either its colour
-key or, when something is wrong with the data, that message."""
+key or, when something is wrong with the data, that message. A layer with a
+`switch_action` has its own on/off switch on the title line and on its
+toggle_key, like the global rain layer: switched off, it draws nothing, fetches
+nothing and keeps only the title line."""
 
 from __future__ import annotations
 
@@ -14,7 +17,7 @@ import time
 from datetime import datetime, timezone
 
 from terrascope.core import config
-from terrascope.core.layer import Layer, SidebarLine
+from terrascope.core.layer import Layer, LayerRender, SidebarLine
 
 from terrascope_br import store
 from terrascope_br._i18n import _
@@ -36,6 +39,7 @@ class SourceLayer(Layer):
     refresh_seconds = 600      # minimum time between two fetches
     stale_after_seconds = 1800 # older data is announced as "no update since"
     fetch_timeout = 30.0
+    switch_action = ""         # set (e.g. "br_gauges.toggle") to give the layer its own on/off switch
 
     def __init__(self) -> None:
         super().__init__()
@@ -43,6 +47,7 @@ class SourceLayer(Layer):
         self.data_time: float | None = None   # epoch of the data shown
         self.error = ""                       # reason of the last failed fetch
         self.read_error = ""                  # reason the cache could not be read
+        self.shown = True                     # the layer's own switch (see switch_action)
 
     # -- what each source implements ------------------------------------------------
     def stamp_file(self):
@@ -66,7 +71,7 @@ class SourceLayer(Layer):
         return age is None or age >= self.refresh_seconds
 
     def refresh_if_due(self, force: bool = False) -> bool:
-        if not self.enabled or not config.FETCH_NEW_DATA_FROM_API:
+        if not self.enabled or not self.shown or not config.FETCH_NEW_DATA_FROM_API:
             return False
         if not force and not self.is_due():
             return False
@@ -120,6 +125,32 @@ class SourceLayer(Layer):
         """The freshness text, as it is now (kept for callers that read it)."""
         return self.freshness_text()
 
+    # -- the layer's own switch (only with a switch_action) ---------------------------
+    def _flip(self) -> None:
+        self.shown = not self.shown
+        if not self.shown:
+            self.selected = None  # the info box must not keep a marker that is gone
+        self.dirty = True
+
+    def handle_key(self, key: int) -> bool:
+        if not self.switch_action:
+            return super().handle_key(key)  # the core's: the key turns the whole layer off
+        if self.toggle_key and 0 <= key < 256 and chr(key).lower() == self.toggle_key.lower():
+            self._flip()
+            return True
+        return False
+
+    def press_legend(self, action: str) -> None:
+        if self.switch_action and action == self.switch_action:
+            self._flip()
+
+    def render(self, view) -> LayerRender:
+        if not self.shown:
+            self.dirty = False
+            self.last_markers = []
+            return LayerRender(None, "#000000")
+        return super().render(view)
+
     # -- legend and info box ---------------------------------------------------------
     def legend_key(self) -> tuple[tuple[str, str, str], ...]:
         """(glyph, colour, label) items of the colour key; empty = no key."""
@@ -129,7 +160,18 @@ class SourceLayer(Layer):
         return self.source_name
 
     def legend_lines(self) -> list[SidebarLine]:
-        lines = [SidebarLine(text=self.legend_title(), bold=True)]
+        if not self.switch_action:
+            lines = [SidebarLine(text=self.legend_title(), bold=True)]
+        else:
+            lines = [SidebarLine(
+                text=self.legend_title(),
+                bold=True,
+                choices=(_("on"), _("off")),
+                choice_index=0 if self.shown else 1,
+                action=self.switch_action,
+            )]
+            if not self.shown:
+                return lines
         if self.has_problem():
             lines.append(SidebarLine(text=self.freshness_text()))
         elif self.legend_key():
