@@ -203,7 +203,7 @@ Notes:
 Notes:
 
 - The plugin only asks CPTEC when INMET fails, and names it as "CPTEC/INPE" exactly: in the info box, in the forecast
-  title and in the map credit of the selected city ("Weather of <city>: Open-Meteo · forecast CPTEC/INPE").
+  title and in the map credit of the selected city ("Open-Meteo · forecast CPTEC/INPE: weather of <city>").
 - Open: ask CPTEC/INPE whether showing the forecast in a free terminal app needs its authorisation; until then the
   source stays a fallback only.
 
@@ -245,8 +245,8 @@ The BRASIL tab shows its credits in one line at the bottom-left of the map, and 
 Sources shown only now and then are named while they show, on their own lines above the tab's line (with a core that
 has `Layer.credits`):
 
-- the selected city's weather: `Weather of <city>: <current source> · forecast <forecast source>` (pt_BR:
-  `Tempo em <cidade>: ...`), so CPTEC/INPE is named whenever its forecast is on screen, as its terms ask;
+- the selected city's weather: `<current source> · forecast <forecast source>: weather of <city>` (pt_BR:
+  `...: tempo em <cidade>`), so CPTEC/INPE is named whenever its forecast is on screen, as its terms ask;
 - the CGE flood-risk regions: `CGE (Prefeitura de São Paulo) · GeoSampa / Prefeitura de São Paulo, CC BY-SA 4.0`.
 
 The core cuts each line to the map width, so on a narrow terminal the end of a line can be cut. City labels keep clear
