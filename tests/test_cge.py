@@ -173,3 +173,83 @@ def test_the_layer_is_switched_on_its_legend_line(layer):
     assert title.action == layer.switch_action and title.choice_index == 0
     layer.press_legend(layer.switch_action)
     assert not layer.shown and layer.render(CITY).lines is None
+
+
+@pytest.mark.parametrize("colour, state", [
+    ((240, 112, 112), "alerta"),     # red at half strength over the grey
+    ((153, 0, 0), "alerta"),         # dark red
+    ((240, 188, 112), "iminencia"),  # orange at half strength
+])
+def test_faded_and_dark_state_colours_keep_their_state(colour, state):
+    assert cge.pixel_state(*colour) == state
+
+
+def test_an_image_without_the_state_legend_is_an_error_not_all_watch():
+    grey = Image.new("RGB", (400, 537), (225, 225, 225))
+    out = io.BytesIO()
+    grey.save(out, format="PNG")
+    with pytest.raises(ValueError, match="legend"):
+        cge.read_states(PAGE, out.getvalue())
+
+
+def test_an_image_map_bigger_than_the_image_is_an_error():
+    page = PAGE.replace('coords="114,435,10"', 'coords="114,935,10"')   # Parelheiros, below the image
+    with pytest.raises(ValueError, match="size"):
+        cge.read_states(page, IMAGE)
+
+
+def test_area_attributes_in_any_order_and_quoting():
+    page = """<map><area title='Sé' coords="157,153,10" shape="circle"/><area shape=circle title="X"></map>"""
+    assert cge.parse_areas(page) == [("SE", "Sé", 157, 153, 10)]
+
+
+def test_odd_geosampa_answers_are_errors_not_crashes():
+    for payload in ([], "erro", {"features": ["x", {"properties": "y"}, {"geometry": "z"}]}):
+        with pytest.raises(ValueError):
+            cge.compact_regions(payload)
+
+
+def test_a_failed_outline_refresh_keeps_the_states_coming(layer, monkeypatch):
+    from terrascope_br.net import SourceError
+
+    _write({})
+    old = time.time() - cge.REGIONS_SECONDS - 10
+    import os
+    os.utime(store.path("cge", "subprefeituras.json"), (old, old))
+    asked = []
+
+    def fake_get(url, timeout, min_gap=1.0, if_modified_since=None):
+        asked.append(url)
+        if url == cge.REGIONS_URL:
+            raise SourceError("HTTP 500")
+        if url == cge.PAGE_URL:
+            return 200, PAGE.encode(), {}
+        return 200, _painted((157, 153, 10, (255, 0, 0))), {"Last-Modified": "Sat, 21 Nov 2026 20:31:11 GMT"}
+
+    monkeypatch.setattr(cge, "get", fake_get)
+    layer.fetch()
+    layer.fetch()
+    assert asked.count(cge.REGIONS_URL) == 1   # not again at every refresh
+    layer.reload()
+    assert [item["code"] for item in layer.items] == ["SE"]
+
+
+def test_an_unchanged_image_is_not_downloaded_again(layer, monkeypatch):
+    sent = []
+
+    def fake_get(url, timeout, min_gap=1.0, if_modified_since=None):
+        if url == cge.REGIONS_URL:
+            return 200, json.dumps(REGIONS).encode(), {}
+        if url == cge.PAGE_URL:
+            return 200, PAGE.encode(), {}
+        sent.append(if_modified_since)
+        if if_modified_since:
+            return 304, b"", {}
+        return 200, _painted((157, 153, 10, (255, 255, 0))), {"Last-Modified": "Sat, 21 Nov 2026 20:31:11 GMT"}
+
+    monkeypatch.setattr(cge, "get", fake_get)
+    layer.fetch()
+    layer.fetch()
+    assert sent == [None, "Sat, 21 Nov 2026 20:31:11 GMT"]
+    layer.reload()
+    assert [item["state"] for item in layer.items] == ["atencao"]

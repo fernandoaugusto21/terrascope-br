@@ -37,6 +37,15 @@ def test_cge_forecast_has_three_days_with_their_periods():
     assert today["summary"] == "Pancadas isoladas" and today["code"] == 80   # the worst period
 
 
+def test_cge_parts_with_new_titles_still_count_for_the_day():
+    page = _read("cge_previsao_estendida.html").replace("<h1>Madrug.</h1>", "<h1>Madrugada</h1>")
+    page = page.replace("<h1>Tarde</h1>", "<h1>Entardecer</h1>")
+    today = wp.parse_cge_forecast(page)[0]
+    assert 0 in [part["part"] for part in today["periods"]]          # "Madrugada" is still the overnight
+    assert 2 not in [part["part"] for part in today["periods"]]      # an unknown title is not drawn...
+    assert today["code"] == 80                                       # ...but its conditions still count
+
+
 def test_cge_station_gives_the_current_conditions():
     today = wp.parse_cge_forecast(_read("cge_previsao_estendida.html"))[0]
     now = wp.parse_cge_station(_read("cge_estacao_503.html"), [today], datetime(2026, 11, 21, 8, 30))

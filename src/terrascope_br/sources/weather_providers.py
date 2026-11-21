@@ -278,10 +278,18 @@ def _page(url: str, keep: float) -> str:
 def _strip(fragment: str) -> str:
     return " ".join(html.unescape(re.sub(r"<[^>]+>", " ", fragment)).split())
 
-PERIODS = ("Madrug.", "Manhã", "Tarde", "Noite")   # the CGE's names, in the order of the day
 # The parts of the day as the forecast box shows them, by part number (hour // 6).
 PART_NAMES = (N_("Overnight"), N_("Morning"), N_("Afternoon"), N_("Night"))
 INMET_PARTS = {"manha": 1, "tarde": 2, "noite": 3}
+
+def part_number(title: str) -> int | None:
+    """Part of the day of a CGE title ("Madrug.", "Madrugada", "Manha"...), by its
+    start, without accents; None when it is none of the four."""
+    plain = _plain(title)
+    for number, start in enumerate(("madrug", "manha", "tarde", "noite")):
+        if plain.startswith(start):
+            return number
+    return None
 
 def period(part: int, conditions: str) -> dict:
     """One part of the day for the core's forecast box ("periods" of a day)."""
@@ -297,13 +305,15 @@ def parse_cge_forecast(page: str) -> list[dict]:
         if not found:
             continue
         day, month, year = (int(group) for group in found.groups())
-        periods = [
-            period(PERIODS.index(_strip(name)), _strip(conditions))
+        found_parts = [
+            (_strip(name), _strip(conditions))
             for name, conditions in re.findall(
                 r'<div class="cond-tempo">\s*<h1>(.*?)</h1>\s*<h2>(.*?)</h2>', block, flags=re.S)
-            if _strip(name) in PERIODS
         ]
-        code, summary = _worst([part["summary"] for part in periods])
+        # A part whose title is not known is not drawn, but its conditions still count.
+        periods = [period(part, conditions) for name, conditions in found_parts
+                   if (part := part_number(name)) is not None]
+        code, summary = _worst([conditions for _name, conditions in found_parts])
         low = re.search(r'class="temp-min">([^<]*)<', block)
         high = re.search(r'class="temp-max">([^<]*)<', block)
         days.append({

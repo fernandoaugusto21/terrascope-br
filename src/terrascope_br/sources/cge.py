@@ -28,6 +28,7 @@ describes. Nothing is drawn below MIN_ZOOM, where the city is a few cells."""
 
 from __future__ import annotations
 
+import html
 import io
 import json
 import re
@@ -54,6 +55,7 @@ REGIONS_URL = ("https://wms.geosampa.prefeitura.sp.gov.br/geoserver/geoportal/wf
                "&request=GetFeature&typeNames=geoportal:subprefeitura&outputFormat=application/json"
                "&srsName=EPSG:4326")
 REGIONS_SECONDS = 30 * 24 * 3600
+REGIONS_RETRY_SECONDS = 3600        # wait after a failed outline refresh (the old outlines stay)
 THIN_DEGREES = 0.001                # about 110 m: a point closer than this to the last kept one is dropped
 MIN_ZOOM = 16.0                     # the city of São Paulo is a few cells below this
 CITY_BOX = (-46.83, -24.01, -46.36, -23.36)   # west, south, east, north of the city
@@ -81,8 +83,15 @@ REGION_CODES = {
     "itaim paulista": "IT", "guaianases": "GU", "cidade tiradentes": "CT",
 }
 
-AREA_PATTERN = re.compile(
-    r'<area[^>]*shape="circle"[^>]*coords="\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*"[^>]*title="([^"]+)"', re.I)
+AREA_TAG = re.compile(r"<area\b([^>]*)>", re.I)
+ATTRIBUTE = re.compile(r"""([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')""")
+# Hue ranges (degrees) of the state colours. Mixing a colour with the grey or white
+# of the map lowers its saturation but keeps its hue, so a half-strength fill is
+# still read right; low saturation or a dark pixel is not a state.
+MIN_SATURATION = 0.3
+MIN_VALUE = 0.35
+HUES = (("alerta", 0.0, 15.0), ("iminencia", 15.0, 48.0), ("atencao", 48.0, 75.0), ("alerta", 345.0, 360.0))
+LEGEND_PIXELS = 20   # the image's legend has a swatch of each state: at least this many pixels each
 
 
 def _plain(text: str) -> str:
@@ -91,61 +100,90 @@ def _plain(text: str) -> str:
 
 
 def parse_areas(page: str) -> list[tuple[str, str, int, int, int]]:
-    """(region code, CGE name, x, y, radius) of each circle of the image map.
-    Raises ValueError when no circle names a known region."""
-    import html as html_module
-
+    """(region code, CGE name, x, y, radius) of each circle of the image map. The
+    attributes of each <area> are read in any order and quoting. Raises
+    ValueError when no circle names a known region."""
     areas = []
-    for x, y, radius, title in AREA_PATTERN.findall(page):
-        name = html_module.unescape(title).strip()
-        code = REGION_CODES.get(_plain(name))
-        if code:
-            areas.append((code, name, int(x), int(y), int(radius)))
+    for attributes in AREA_TAG.findall(page):
+        fields = {name.lower(): html.unescape(double or single).strip()
+                  for name, double, single in ATTRIBUTE.findall(attributes)}
+        code = REGION_CODES.get(_plain(fields.get("title", "")))
+        numbers = re.findall(r"\d+", fields.get("coords", ""))
+        if code and fields.get("shape", "circle").lower() == "circle" and len(numbers) == 3:
+            x, y, radius = (int(number) for number in numbers)
+            areas.append((code, fields["title"], x, y, radius))
     if not areas:
         raise ValueError("no known region on the CGE alert map")
     return areas
 
 
+def pixel_states(rgb: np.ndarray) -> np.ndarray:
+    """The state index (into ORDER) of each pixel of an (..., 3) RGB array: by hue
+    for saturated, not too dark pixels (red, orange, yellow); 0 (watch) for grey,
+    white, black and the blue of the rivers."""
+    rgb = np.asarray(rgb, dtype=np.float64) / 255.0
+    high, low = rgb.max(axis=-1), rgb.min(axis=-1)
+    chroma = high - low
+    saturation = np.divide(chroma, high, out=np.zeros_like(high), where=high > 0)
+    red, green, blue = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        hue = np.where(high == red, ((green - blue) / chroma) % 6,
+                       np.where(high == green, (blue - red) / chroma + 2, (red - green) / chroma + 4)) * 60.0
+    coloured = (saturation >= MIN_SATURATION) & (high >= MIN_VALUE) & (chroma > 0)
+    states = np.zeros(high.shape, dtype=np.int64)
+    for name, start, end in HUES:
+        states[coloured & (hue >= start) & (hue < end)] = ORDER.index(name)
+    return states
+
+
 def pixel_state(red: int, green: int, blue: int) -> str:
-    """The state a map pixel's colour stands for: yellow, orange and red are
-    states; grey, white, black and the city's blue rivers are not (watch)."""
-    if red < 170 or blue > red * 0.6:
-        return "observacao"
-    ratio = green / red
-    if ratio > 0.8:
-        return "atencao"
-    if ratio > 0.35:
-        return "iminencia"
-    return "alerta"
+    """The state one pixel's colour stands for (see pixel_states)."""
+    return ORDER[int(pixel_states(np.array([red, green, blue]))[()])]
 
 
-def region_state(image: Image.Image, x: int, y: int, radius: int) -> str:
-    """The state of the region whose circle is at (x, y): the most common state
-    colour inside the circle, when enough of it carries one (the region's name is
-    printed there in black); watch otherwise."""
-    rgb = np.asarray(image.convert("RGB"), dtype=np.int32)
-    height, width = rgb.shape[:2]
+def region_state(states: np.ndarray, x: int, y: int, radius: int) -> str:
+    """The state of the region whose circle is at (x, y), from the per-pixel
+    states of the image: the most common state colour inside the circle, when
+    enough of it carries one (the region's name is printed there in black);
+    watch otherwise."""
+    height, width = states.shape
     ys, xs = np.mgrid[max(0, y - radius):min(height, y + radius + 1), max(0, x - radius):min(width, x + radius + 1)]
-    inside = (xs - x) ** 2 + (ys - y) ** 2 <= radius * radius
-    counts = {state: 0 for state in ORDER}
-    for red, green, blue in rgb[ys[inside], xs[inside]].tolist():
-        counts[pixel_state(red, green, blue)] += 1
-    total = max(1, sum(counts.values()))
-    colored = [(counts[state], ORDER.index(state), state) for state in ORDER[1:] if counts[state]]
-    if not colored or sum(count for count, _i, _s in colored) < total * COLORED_SHARE:
+    inside = states[ys, xs][(xs - x) ** 2 + (ys - y) ** 2 <= radius * radius]
+    counts = np.bincount(inside, minlength=len(ORDER))
+    if counts[1:].sum() < max(1, inside.size) * COLORED_SHARE:
         return "observacao"
-    return max(colored)[2]
+    best = max(range(1, len(ORDER)), key=lambda index: (counts[index], index))
+    return ORDER[best]
 
 
-def read_states(page: str, image_bytes: bytes) -> dict[str, dict]:
-    """Region code -> {"name", "state"} from the page and its image. Raises ValueError."""
+def image_states(image_bytes: bytes) -> np.ndarray:
+    """Per-pixel states of the alert image. Raises ValueError when it cannot be
+    read or does not look like the CGE alert map (its legend has a swatch of each
+    state colour), so a new look shows up as a failed update, not as all-watch."""
     try:
         image = Image.open(io.BytesIO(image_bytes))
         image.load()
+        rgb = np.asarray(image.convert("RGB"))
     except (OSError, ValueError) as error:
         raise ValueError(f"unreadable CGE map image: {error}") from error
-    return {code: {"name": name, "state": region_state(image, x, y, radius)}
-            for code, name, x, y, radius in parse_areas(page)}
+    states = pixel_states(rgb)
+    counts = np.bincount(states.ravel(), minlength=len(ORDER))
+    if (counts[1:] < LEGEND_PIXELS).any():
+        raise ValueError("the CGE map image has no legend with the state colours")
+    return states
+
+
+def read_states(page: str, image_bytes: bytes) -> dict[str, dict]:
+    """Region code -> {"name", "state"} from the page and its image. Raises
+    ValueError when either is not what the layer knows, or a circle of the page
+    falls outside the image (the image was redrawn at another size)."""
+    states = image_states(image_bytes)
+    height, width = states.shape
+    areas = parse_areas(page)
+    if any(not (0 <= x < width and 0 <= y < height) for _code, _name, x, y, _radius in areas):
+        raise ValueError("the CGE image map does not match the image size")
+    return {code: {"name": name, "state": region_state(states, x, y, radius)}
+            for code, name, x, y, radius in areas}
 
 
 def thin(points: list, step: float = THIN_DEGREES) -> list:
@@ -165,14 +203,20 @@ def compact_regions(payload: dict) -> dict:
     """The GeoSampa answer reduced to {code: {"name", "rings": [[[lon, lat], ...]]}}.
     Raises ValueError when no region is in it."""
     regions: dict[str, dict] = {}
-    for feature in payload.get("features") or []:
-        properties = (feature or {}).get("properties") or {}
+    features = payload.get("features") if isinstance(payload, dict) else None
+    for feature in features if isinstance(features, list) else []:
+        if not isinstance(feature, dict) or not isinstance(feature.get("properties") or {}, dict):
+            continue
+        properties = feature.get("properties") or {}
         code = str(properties.get("sg_subprefeitura") or "").strip()
-        geometry = (feature or {}).get("geometry") or {}
+        geometry = feature.get("geometry") if isinstance(feature.get("geometry"), dict) else {}
         kind, coordinates = geometry.get("type"), geometry.get("coordinates") or []
         polygons = [coordinates] if kind == "Polygon" else coordinates if kind == "MultiPolygon" else []
-        rings = [[[round(lon, 5), round(lat, 5)] for lon, lat, *_rest in thin(ring)]
-                 for polygon in polygons for ring in polygon if len(ring) >= 4]
+        try:
+            rings = [[[round(float(lon), 5), round(float(lat), 5)] for lon, lat, *_rest in thin(ring)]
+                     for polygon in polygons for ring in polygon if len(ring) >= 4]
+        except (TypeError, ValueError):
+            continue
         if code and rings:
             regions[code] = {"name": str(properties.get("nm_subprefeitura") or code).title(), "rings": rings}
     if not regions:
@@ -209,6 +253,8 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
         self._outline_key = None
         self._outline_lines: list[str] = []
         self.regions: list[dict] = []   # every region, with its state (items: the ones in a state)
+        self._regions_retry_at = 0.0
+        self._generation = 0            # counts parses: the cached drawings belong to one of them
 
     # -- files ----------------------------------------------------------------------
     def stamp_file(self):
@@ -217,25 +263,46 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
     def regions_file(self):
         return store.path("cge", "subprefeituras.json")
 
-    def fetch(self) -> None:
-        regions_age = store.age(self.regions_file())
-        if regions_age is None or regions_age >= REGIONS_SECONDS:
+    def _refresh_regions(self) -> None:
+        """Download the outlines when missing or 30 days old. A failure keeps the
+        outlines in the cache (raises only when there are none) and is not tried
+        again for REGIONS_RETRY_SECONDS, so the states keep updating."""
+        age = store.age(self.regions_file())
+        if age is not None and (age < REGIONS_SECONDS or time.monotonic() < self._regions_retry_at):
+            return
+        try:
             _status, body, _headers = get(REGIONS_URL, 60.0, min_gap=1.0)
-            try:
-                compact = compact_regions(json.loads(body.decode("utf-8")))
-            except (UnicodeDecodeError, ValueError, TypeError) as error:
-                if regions_age is None:
-                    raise SourceError(f"GeoSampa regions unreadable: {error}") from error
-            else:
-                store.write_bytes(self.regions_file(), json.dumps(compact).encode("utf-8"))
+            compact = compact_regions(json.loads(body.decode("utf-8")))
+        except (SourceError, UnicodeDecodeError, ValueError, TypeError, AttributeError) as error:
+            self._regions_retry_at = time.monotonic() + REGIONS_RETRY_SECONDS
+            if age is None:
+                raise SourceError(f"GeoSampa regions: {error}") from error
+            return
+        store.write_bytes(self.regions_file(), json.dumps(compact).encode("utf-8"))
+
+    def fetch(self) -> None:
+        self._refresh_regions()
+        previous: dict = {}
+        try:
+            loaded = json.loads((store.read_bytes(self.stamp_file()) or b"{}").decode("utf-8"))
+            previous = loaded if isinstance(loaded, dict) else {}
+        except (UnicodeDecodeError, ValueError):
+            pass
+        since = previous.get("last_modified") if previous.get("regions") else None
+        status, image, headers = get(IMAGE_URL, 30.0, min_gap=1.0, if_modified_since=since)
+        if status == 304:
+            # The same image: nothing to read again; the file's new age says it was checked.
+            store.write_bytes(self.stamp_file(), json.dumps(previous, ensure_ascii=False).encode("utf-8"))
+            return
         _status, page, _headers = get(PAGE_URL, 30.0, min_gap=1.0)
-        _status, image, headers = get(IMAGE_URL, 30.0, min_gap=1.0)
         try:
             states = read_states(page.decode("utf-8", "replace"), image)
         except ValueError as error:
             raise SourceError(f"CGE alert map: {error}") from error
+        modified = next((value for name, value in (headers or {}).items() if name.lower() == "last-modified"), None)
         store.write_bytes(self.stamp_file(), json.dumps(
-            {"time": _modified(headers), "regions": states}, ensure_ascii=False).encode("utf-8"))
+            {"time": _modified(headers), "last_modified": modified, "regions": states},
+            ensure_ascii=False).encode("utf-8"))
 
     def parse(self):
         data = store.read_bytes(self.stamp_file())
@@ -262,6 +329,8 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
                 "severity": _(STATES[state][1]), "event": _(STATES[state][1]),
             })
         self.regions = regions
+        self._generation += 1
+        self._cells_key = None          # the inherited warning cells are drawn again too
         flagged = [region for region in regions if region["state"] != "observacao"]
         flagged.sort(key=lambda region: ORDER.index(region["state"]))  # most severe drawn last
         return flagged, float(document.get("time") or 0) or None
@@ -280,7 +349,7 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
     def build(self, view: View) -> LayerRender:
         if not self.regions or not self._in_view(view):
             return LayerRender(None, OUTLINE_COLOR)
-        outline_key = (view_key(view), id(self.regions))
+        outline_key = (view_key(view), self._generation)
         if outline_key != self._outline_key:
             self._outline_lines = draw_outlines([ring for region in self.regions for ring in region["rings"]], view)
             self._outline_key = outline_key
