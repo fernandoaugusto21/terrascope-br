@@ -253,3 +253,31 @@ def test_an_unchanged_image_is_not_downloaded_again(layer, monkeypatch):
     assert sent == [None, "Sat, 21 Nov 2026 20:31:11 GMT"]
     layer.reload()
     assert [item["state"] for item in layer.items] == ["atencao"]
+
+
+def test_geosampa_and_its_licence_are_named_while_the_outlines_show(layer):
+    _write({})
+    layer.reload()
+    assert layer.credits() == []                       # nothing drawn yet
+    layer.build(CITY)
+    (line,) = layer.credits()
+    assert line.startswith("GeoSampa (CC BY-SA 4.0)")   # the licence before what a narrow map cuts
+    layer.build(View(-43.2, -22.9, 64, 120, 40))      # Rio: not drawn
+    assert layer.credits() == []
+    layer.build(CITY)
+    layer.press_legend(layer.switch_action)            # switched off
+    assert layer.credits() == []
+    layer.press_legend(layer.switch_action)            # on again: named after the next drawing
+    assert layer.credits() == []
+    layer.build(CITY)
+    assert len(layer.credits()) == 1
+    layer.clear()
+    assert layer.credits() == []
+
+
+def test_an_older_core_gets_geosampa_in_the_tab_line(monkeypatch):
+    from terrascope_br import tabs
+
+    assert "GeoSampa" not in tabs.brasil_tabs()[0]["attribution"]
+    monkeypatch.setattr(tabs, "_core_names_layer_credits", lambda: False)
+    assert tabs.brasil_tabs()[0]["attribution"].endswith("GeoSampa (CC BY-SA 4.0)")

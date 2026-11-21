@@ -1,8 +1,8 @@
 # Data terms of use
 
 This note records what each data source read by terrascope-br publishes about reuse: whether free software may consume
-the data, the attribution required, request limits, commercial use and caching. Everything was checked on **2026-11-14**
-(access date of every statement below). It is a reference note, not legal advice.
+the data, the attribution required, request limits, commercial use and caching. Sections 1 to 6 were checked on **2026-11-14**,
+sections 7 to 10 (the weather sources) on **2026-11-21**: that is the access date of every statement in them. It is a reference note, not legal advice.
 
 Where a source publishes no terms, the tables say so; nothing is assumed. Every statement names the page it came from.
 
@@ -28,9 +28,11 @@ Certainty:
 | USGS earthquake feed (fallback) | `https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson` | `sources/iag.py` |
 | SP Águas measurements (SIBH) | `https://apps.spaguas.sp.gov.br/sibh/api/v2/measurements/now?station_type_id=2&hours=1` | `sources/spaguas.py` |
 | IAG-USP Chuva Online radar | `https://www.starnet.iag.usp.br/img_starnet/Radar_USP/pelletron_36km/loop/36km_loop_{index}.png` (10 frames) | `sources/chuva_online.py` |
-| CGE São Paulo (terms not checked yet) | `https://www.cgesp.org/v3/previsao_estendida.jsp`, `https://www.cgesp.org/v3/estacao.jsp?POSTO=503` | `sources/weather_providers.py` |
-| INMET forecast (terms not checked yet) | `https://apiprevmet3.inmet.gov.br/previsao/{IBGE code}` | `sources/weather_providers.py` |
-| CPTEC/INPE forecast (terms not checked yet) | `https://servicos.cptec.inpe.br/XML/listaCidades?city={name}`, `https://servicos.cptec.inpe.br/XML/cidade/7dias/{id}/previsao.xml` | `sources/weather_providers.py` |
+| CGE São Paulo (section 7) | `https://www.cgesp.org/v3/previsao_estendida.jsp`, `https://www.cgesp.org/v3/estacao.jsp?POSTO=503` | `sources/weather_providers.py` |
+| CGE São Paulo alert map (section 7) | `https://www.cgesp.org/v3/mapas.jsp?arq=alertas`, `https://www.cgesp.org/cgesp/mapa_sp_geoserver.png` | `sources/cge.py` |
+| GeoSampa subprefeituras (section 10) | `https://wms.geosampa.prefeitura.sp.gov.br/geoserver/geoportal/wfs?...&typeNames=geoportal:subprefeitura&outputFormat=application/json` | `sources/cge.py` |
+| INMET forecast (section 8) | `https://apiprevmet3.inmet.gov.br/previsao/{IBGE code}` | `sources/weather_providers.py` |
+| CPTEC/INPE forecast (section 9) | `https://servicos.cptec.inpe.br/XML/listaCidades?city={name}`, `https://servicos.cptec.inpe.br/XML/cidade/7dias/{id}/previsao.xml` | `sources/weather_providers.py` |
 | IBGE malhas by state | `https://servicodados.ibge.gov.br/api/v3/malhas/estados/{code}?...&qualidade={minima,intermediaria,maxima}` | `sources/ibge.py`, `sources/weather_providers.py` |
 
 ## 1. IBGE (malhas and localidades APIs)
@@ -148,6 +150,80 @@ Notes:
 - The copyright notice is not a licence. Because no reuse terms were found, reuse of the frames needs confirmation from
   IAG-USP. The plugin reads the frames and draws their cells; it does not republish the images.
 
+## 7. CGE São Paulo (forecast, station, alert map)
+
+| Question | Answer | Certainty | Source |
+|---|---|---|---|
+| May free software consume it? | Nothing published either way. The CGE site has no terms of use, licence or copyright notice (home page and footer read), and no API: the plugin reads its HTML pages and its alert image. | none | [CGE home](https://www.cgesp.org/v3/), fetched |
+| Attribution? | Not stated. The CGE presents itself as a service of the city hall that publishes its data so it reaches as many people as possible; news outlets credit "CGE da Prefeitura de São Paulo". | low (practice, not a rule) | [Quem somos](https://www.cgesp.org/v3/quem-somos.jsp), search snippet |
+| Licence | None found for the CGE. The city hall's licensing guide says its open data portal is under a Creative Commons licence; the CGE pages are not on that portal. | none | [Cartilha de licenciamento](https://drive.prefeitura.sp.gov.br/cidade/secretarias/upload/Cartilha%20Licenciamento.pdf), search snippet |
+| Request limits | None published. The plugin keeps each page 10 to 30 minutes, asks the alert image every 5 minutes with `If-Modified-Since` (the server answers 304 while it is unchanged), and paces requests to one a second per host. | none (limits); high (what the plugin does) | code |
+| Commercial use | Not stated. | none | - |
+| Caching | Not stated. | none | - |
+
+Notes:
+
+- What the app shows: the provider name "CGE" in the info box and in the forecast title of the city of São Paulo, the
+  map credit "CGE: weather of São Paulo" while that city is selected, and "CGE" in the tab's credits.
+- Reading HTML and an image is fragile and not an agreed interface: a new layout shows up as "update failed", never as
+  wrong data, and the next provider answers for the weather (see the README).
+- Open: ask the CGE (contact on its site) whether the reuse is fine and whether a data feed exists.
+
+## 8. INMET (forecast by municipality and weather stations)
+
+| Question | Answer | Certainty | Source |
+|---|---|---|---|
+| May free software consume it? | Yes, as far as stated: "Os dados coletados pelo Inmet são públicos e podem ser acessados gratuitamente e, em tempo real, pelo portal do Instituto". | high | [INMET news, 26/06/2024](https://portal.inmet.gov.br/noticias/saiba-como-acessar-os-dados-meteorol%C3%B3gicos-dispon%C3%ADveis-no-site-do-inmet), fetched |
+| Responsibility | "O Inmet fornece os dados meteorológicos, contudo, o uso e aplicação desses dados é de responsabilidade do usuário." | high | same page, fetched |
+| Attribution? | Not stated for the data. INMET's publications (management report, climate normals) say reproduction is allowed "desde que citada a fonte e que não seja para venda ou qualquer fim comercial"; that is about those publications, not the API. | low (for the data) | [Relatório de Gestão 2020-2022](https://portal.inmet.gov.br/uploads/notastecnicas/Relat%C3%B3rio-Gest%C3%A3o-Final_um.pdf), search snippet |
+| Licence | None published for the API. INMET's innovation policy (MAPA Portaria 752) prioritises open data. | low | search snippets |
+| Request limits | None published for `apiprevmet3`. The station API (`apitempo`) needs a personal key (token), asked by e-mail (see the README); a period of at most 6 months per request is reported by third parties. | low | third-party projects, search snippets |
+| Commercial use | Not stated for the data. | none | - |
+| Caching | Not stated. | none | - |
+
+Notes:
+
+- The privacy page (`portal.inmet.gov.br/pp`) is about personal data (LGPD) only.
+- The plugin names INMET in the tab's credits, in the info box ("forecast INMET") and, while a city with an INMET
+  forecast is selected, in the map credit of that city.
+- The official API manual (`portal.inmet.gov.br/manual/manual-de-uso-da-api-estações`) answered HTTP 404.
+
+## 9. CPTEC/INPE (forecast XML, fallback of INMET)
+
+| Question | Answer | Certainty | Source |
+|---|---|---|---|
+| May free software consume it? | Restricted: "Os produtos apresentados nesta página não podem ser usados para propósitos comerciais, copiados integral ou parcialmente para a reprodução em meios de divulgação, sem a expressa autorização do CPTEC/INPE." A free, non-commercial app is not excluded by the first part; whether showing the forecast in an app is "reproduction in a means of dissemination" is not said. | high (text); open (reading) | ["Termos de uso" of the XML service](https://servicos.cptec.inpe.br/XML/#termos-uso), fetched |
+| Attribution? | Required: "Os usuários deverão sempre mencionar a fonte das informações e dados como "CPTEC/INPE"." | high | same section, fetched |
+| Liability | "Em nenhum caso o CPTEC/INPE pode ser responsabilizado por danos especiais, indiretos ou decorrentes [...]". | high | same section, fetched |
+| Request limits | None published. | none | same page |
+| Commercial use | Not without the express authorisation of CPTEC/INPE. | high | same section, fetched |
+| Caching | Not stated. | none | - |
+
+Notes:
+
+- The plugin only asks CPTEC when INMET fails, and names it as "CPTEC/INPE" exactly: in the info box, in the forecast
+  title and in the map credit of the selected city ("Open-Meteo · forecast CPTEC/INPE: weather of <city>").
+- Open: ask CPTEC/INPE whether showing the forecast in a free terminal app needs its authorisation; until then the
+  source stays a fallback only.
+
+## 10. GeoSampa (subprefeitura outlines)
+
+| Question | Answer | Certainty | Source |
+|---|---|---|---|
+| May free software consume it? | Yes: "A licença Creative Commons Attribution Share-Alike 4.0 (CC-BY-SA-4.0) permite a livre utilização", under an open licence that does not restrict access or use. | high | [Licença para uso de dados do GeoSampa, 03/04/2025](https://prefeitura.sp.gov.br/web/licenciamento/w/licen%C3%A7a-para-uso-de-dados-do-geosampa), fetched |
+| Attribution? | Required: "o reconhecimento da fonte e manutenção de licença semelhante". | high | same page, fetched |
+| Share-alike | Data republished from it must keep the same conditions ("republicação dos dados sob as mesmas condições"). | high | same page, fetched |
+| Licence | CC BY-SA 4.0 for the layers produced by the city's bodies; the portal's code is MIT. | high (data); medium (code) | same page; [GeoSampa 2.0 versions](https://novogeosampa.prefeitura.sp.gov.br/Version), search snippet |
+| Request limits | None published. The plugin downloads the layer once and keeps it 30 days. | none | - |
+| Commercial use | Not restricted by CC BY-SA 4.0. | high | licence |
+| Caching | Allowed by the licence. | high | licence |
+
+Notes:
+
+- The plugin keeps a thinned copy of the outlines in the user's cache; it does not republish them. The map names the
+  source and the licence while the regions are drawn: "GeoSampa (CC BY-SA 4.0), City of São Paulo" (licence first, so
+  a narrow map cuts the rest).
+
 ## Cross-source points
 
 - Attribution is an open-data condition only where a licence says so. Of the sources above, the IBGE and INPE pages give
@@ -162,11 +238,20 @@ Notes:
 The BRASIL tab shows its credits in one line at the bottom-left of the map, and the core always adds
 "© OpenStreetMap contributors" below it (`src/terrascope/core/ui/map.py`, `draw_attribution`).
 
-- Before: `Data: IBGE, INPE, IAG-USP, SP Águas` (pt_BR: `Dados: IBGE, INPE, IAG-USP, SP Águas`).
-- After: `Data: IBGE, INPE, IAG-USP, SP Águas, USGS` (pt_BR: `Dados: IBGE, INPE, IAG-USP, SP Águas, USGS`).
+- 2026-11-14: `Data: IBGE, INPE, IAG-USP, SP Águas` became `Data: IBGE, INPE, IAG-USP, SP Águas, USGS` (USGS was
+  missing although the earthquake layer uses it as fallback).
+- 2026-11-21: `Data: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, CGE, RainViewer, Open-Meteo` (pt_BR: `Dados: ...`).
 
-USGS was missing although the earthquake layer uses it as fallback. The core cuts the line to the map width, so on a
-narrow terminal the end of the line can be cut.
+Sources shown only now and then are named while they show, on their own lines above the tab's line (with a core that
+has `Layer.credits`):
+
+- the selected city's weather: `<current source> · forecast <forecast source>: weather of <city>` (pt_BR:
+  `...: tempo em <cidade>`), so CPTEC/INPE is named whenever its forecast is on screen, as its terms ask;
+- the CGE flood-risk regions: `GeoSampa (CC BY-SA 4.0), City of São Paulo` (pt_BR: `..., Prefeitura de São
+  Paulo`); with a core that does not draw the layers' credits, `GeoSampa (CC BY-SA 4.0)` goes in the tab's line.
+
+The core cuts each line to the map width, so on a narrow terminal the end of a line can be cut. City labels keep clear
+of every credit line and of the footer row (slider and scale bar).
 
 ## Open items
 
@@ -177,6 +262,10 @@ narrow terminal the end of the line can be cut.
 4. SP Águas: read the FAQ and the SIBH terms (the FAQ returned a certificate error).
 5. USGS: read the Feed Lifecycle Policy (HTTP 404 here) and the 2022 rate-limit announcement in full.
 6. Decree 8.777/2016, art. 2, III: check the wording on planalto.gov.br.
+7. CGE: ask whether reading its pages and alert image is fine, and whether a data feed exists.
+8. CPTEC/INPE: ask whether a free terminal app showing the forecast needs its authorisation ("reprodução em meios de
+   divulgação").
+9. INMET: find a terms or licence statement for the API data (the API manual address answered HTTP 404).
 
 ## Access log (2026-11-14)
 
@@ -200,3 +289,17 @@ narrow terminal the end of the line can be cut.
 | https://dadosabertos.sp.gov.br/ (SP Águas listing) | not reachable (search snippet used) |
 | https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2016/decreto/d8777.htm | blocked |
 | https://www.in.gov.br/ (Decree 8.777/2016) | connection error |
+
+## Access log (2026-11-21)
+
+| URL | Result |
+|---|---|
+| https://www.cgesp.org/v3/ | read (no terms, licence or copyright notice) |
+| https://www.cgesp.org/v3/mapas.jsp?arq=alertas | read |
+| https://servicos.cptec.inpe.br/XML/ (section "Termos de uso") | read |
+| https://portal.inmet.gov.br/noticias/saiba-como-acessar-os-dados-meteorol%C3%B3gicos-dispon%C3%ADveis-no-site-do-inmet | read |
+| https://portal.inmet.gov.br/manual/manual-de-uso-da-api-esta%C3%A7%C3%B5es | HTTP 404 |
+| https://prefeitura.sp.gov.br/web/licenciamento/w/licen%C3%A7a-para-uso-de-dados-do-geosampa | read |
+| https://novogeosampa.prefeitura.sp.gov.br/Version | search snippet used |
+| https://drive.prefeitura.sp.gov.br/cidade/secretarias/upload/Cartilha%20Licenciamento.pdf | search snippet used |
+| https://www.cgesp.org/v3/quem-somos.jsp | search snippet used |

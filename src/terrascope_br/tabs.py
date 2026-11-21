@@ -4,7 +4,21 @@ from __future__ import annotations
 
 from terrascope_br._i18n import _
 
+
+def _core_names_layer_credits() -> bool:
+    """True when the core draws the layers' own credits (Layer.credits)."""
+    try:
+        from terrascope.core.layer import Layer
+    except ImportError:
+        return False
+    return callable(getattr(Layer, "credits", None))
+
 def brasil_tabs() -> list[dict]:
+    attribution = _("Data: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, CGE, RainViewer, Open-Meteo")
+    if not _core_names_layer_credits():
+        # An older core does not draw the layers' credits: GeoSampa (CC BY-SA 4.0 asks to
+        # be named) goes in the tab's line instead.
+        attribution += " · GeoSampa (CC BY-SA 4.0)"
     return [
         {
             "name": "brasil",
@@ -27,7 +41,10 @@ def brasil_tabs() -> list[dict]:
             "detailed": True,
             # The city temperature labels take the place of the basemap's city names (as on the WEATHER tab).
             "place_names": False,
-            "attribution": _("Data: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, CGE, GeoSampa, RainViewer, Open-Meteo"),
+            # Sources shown only now and then are named by their layers while they show
+            # (Layer.credits): GeoSampa with the CGE regions, the weather source of the
+            # selected city (CPTEC/INPE when it gave the forecast).
+            "attribution": attribution,
             "view": {"lat": -14, "lon": -52, "zoom": 3},
             # Closer than the world map (64): at 256 one braille dot is about 260 m, the detail
             # of the IBGE "maxima" outlines (see ibge.py).

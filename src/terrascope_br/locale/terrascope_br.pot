@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-21 17:35-0300\n"
+"POT-Creation-Date: 2026-11-21 18:11-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -62,67 +62,71 @@ msgstr ""
 msgid "off"
 msgstr ""
 
-#: src/terrascope_br/tabs.py:13
+#: src/terrascope_br/tabs.py:17
+msgid ""
+"Data: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, CGE, RainViewer, Open-"
+"Meteo"
+msgstr ""
+
+#: src/terrascope_br/tabs.py:27
 msgid ""
 "Brazil: state and city outlines, fires, quakes, rain gauges, radar, and "
 "global rain and temperature cropped to Brazil"
 msgstr ""
 
-#: src/terrascope_br/tabs.py:30
-msgid ""
-"Data: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, CGE, GeoSampa, "
-"RainViewer, Open-Meteo"
-msgstr ""
-
-#: src/terrascope_br/sources/cge.py:65
+#: src/terrascope_br/sources/cge.py:67
 msgid "watch"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:66
+#: src/terrascope_br/sources/cge.py:68
 msgid "attention"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:67
+#: src/terrascope_br/sources/cge.py:69
 msgid "overflow imminent"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:68
+#: src/terrascope_br/sources/cge.py:70
 msgid "alert"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:198
+#: src/terrascope_br/sources/cge.py:245
 msgid "CGE flood risk, São Paulo city"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:199
+#: src/terrascope_br/sources/cge.py:246
 msgid "CGE REGION"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:305 src/terrascope_br/sources/iag.py:216
+#: src/terrascope_br/sources/cge.py:371
+msgid "GeoSampa (CC BY-SA 4.0), City of São Paulo"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:389 src/terrascope_br/sources/iag.py:216
 #: src/terrascope_br/sources/iag.py:217 src/terrascope_br/sources/inmet.py:312
 #: src/terrascope_br/sources/inmet.py:314
 #: src/terrascope_br/sources/spaguas.py:131
 msgid "N/A"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:307
+#: src/terrascope_br/sources/cge.py:391
 msgid "REGION"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:308 src/terrascope_br/sources/ibge.py:300
+#: src/terrascope_br/sources/cge.py:392 src/terrascope_br/sources/ibge.py:300
 msgid "STATE"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:308
+#: src/terrascope_br/sources/cge.py:392
 msgid "state"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:309
+#: src/terrascope_br/sources/cge.py:393
 #: src/terrascope_br/sources/spaguas.py:139
 msgid "UPDATED"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:310 src/terrascope_br/sources/iag.py:219
+#: src/terrascope_br/sources/cge.py:394 src/terrascope_br/sources/iag.py:219
 msgid "SOURCE"
 msgstr ""
 
@@ -373,19 +377,19 @@ msgstr ""
 msgid "LAST HOUR"
 msgstr ""
 
-#: src/terrascope_br/sources/weather_providers.py:283
+#: src/terrascope_br/sources/weather_providers.py:282
 msgid "Overnight"
 msgstr ""
 
-#: src/terrascope_br/sources/weather_providers.py:283
+#: src/terrascope_br/sources/weather_providers.py:282
 msgid "Morning"
 msgstr ""
 
-#: src/terrascope_br/sources/weather_providers.py:283
+#: src/terrascope_br/sources/weather_providers.py:282
 msgid "Afternoon"
 msgstr ""
 
-#: src/terrascope_br/sources/weather_providers.py:283
+#: src/terrascope_br/sources/weather_providers.py:282
 msgid "Night"
 msgstr ""
 
