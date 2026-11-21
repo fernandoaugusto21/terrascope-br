@@ -28,5 +28,8 @@ def brasil_tabs() -> list[dict]:
             "place_names": False,
             "attribution": _("Data: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, RainViewer, Open-Meteo"),
             "view": {"lat": -14, "lon": -52, "zoom": 3},
+            # Closer than the world map (64): at 256 one braille dot is about 260 m, the detail
+            # of the IBGE "maxima" outlines (see ibge.py).
+            "zoom_max": 256,
         }
     ]

@@ -78,3 +78,9 @@ def test_core_not_installed_is_reported(monkeypatch):
 
     monkeypatch.setattr(importlib.metadata, "version", missing)
     assert check_command.check() == ["terrascope is not installed in this environment"]
+
+
+def test_core_without_tab_zoom_max_is_reported(monkeypatch):
+    monkeypatch.setattr(check_command, "_core_tab_keys", lambda: frozenset({"name", "label", "view"}))
+    problems = check_command.check()
+    assert any("zoom_max" in line for line in problems)

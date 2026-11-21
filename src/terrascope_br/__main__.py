@@ -32,6 +32,13 @@ def _names_registered_by_this_package(group: str) -> set[str]:
     return names
 
 
+def _core_tab_keys() -> frozenset:
+    """The tab keys the installed core accepts."""
+    from terrascope.core import plugins
+
+    return frozenset(getattr(plugins, "TAB_KEYS", ()))
+
+
 def check() -> list[str]:
     """The problems found, one line each. An empty list means the tab loads."""
     try:
@@ -43,6 +50,11 @@ def check() -> list[str]:
         problems.append(
             f"terrascope {core} has no plugin support (terrascope.core.plugins): "
             "install a Terrascope build with plugins, as the README says"
+        )
+    elif "zoom_max" not in _core_tab_keys():
+        problems.append(
+            f"terrascope {core} does not know a tab's zoom_max, so it would skip the BRASIL tab: "
+            "update Terrascope from its main branch, as the README says"
         )
     for group, expected in ((TAB_GROUP, EXPECTED_TABS), (LAYER_GROUP, EXPECTED_LAYERS)):
         registered = _names_registered_by_this_package(group)
