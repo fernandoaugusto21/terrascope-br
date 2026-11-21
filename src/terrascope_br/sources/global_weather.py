@@ -56,6 +56,8 @@ from terrascope.layers.weather.radar import (
 
 from terrascope_br._i18n import _
 from terrascope_br.base import key as legend_key, utc_text
+from terrascope_br.geo import view_key
+from terrascope_br.sources import ibge, municipalities
 from terrascope_br.sources.ibge import state_rings
 
 RAIN_ACTION = "br_global_rain.toggle"
@@ -268,6 +270,8 @@ class GlobalTempLayer(WeatherLayer):
         self.show_quakes = False
         self._ordered_startup = False  # no core startup stage drives this layer
         self._startup_weather_ready = True  # city weather is fetched for the visible cities
+        self._marker_states: tuple[str, ...] = ()  # states whose municipalities the view labels
+        self._states_key = None
 
     def handle_key(self, key: int) -> bool:  # the core's C and E keys are not ours
         if 0 <= key < 256 and chr(key).lower() == self.toggle_key:
@@ -289,6 +293,61 @@ class GlobalTempLayer(WeatherLayer):
 
     def radar_markers(self, view: View, blocked: set[tuple]) -> list:
         return []
+
+    # -- one label per municipality from MARKER_MIN_ZOOM on (see municipalities.py) ------
+    def city_places(self, view: View):
+        """The municipalities of the states in view from MARKER_MIN_ZOOM on (the
+        core's Natural Earth cities below it, or while the municipality files and
+        names load)."""
+        if view.zoom < municipalities.MARKER_MIN_ZOOM:
+            self._marker_states, self._states_key = (), None
+            yield from super().city_places(view)
+            return
+        key = view_key(view)
+        if key != self._states_key:  # the state boxes are read once per view, not per redraw
+            self._states_key, self._marker_states = key, ibge.states_in_view(view)
+        names = municipalities.names()
+        ready = [(state, municipalities.ready_places(state)) for state in self._marker_states]
+        ready = [(state, places) for state, places in ready if places is not None]
+        if not names or not ready:
+            yield from super().city_places(view)
+            return
+        west, north = view.origin_lon, view.origin_lat
+        east, south = west + view.lon_span, north - view.lat_span
+        # Best first across the states in view: the rank of build_places, merged.
+        merged = sorted(
+            ((index, place) for _state, places in ready for index, place in enumerate(places)
+             if west <= place[0] <= east and south <= place[1] <= north),
+            key=lambda pair: (pair[1][3] is None, -(pair[1][3] or 0), pair[0]),
+        )
+        for _index, (lon, lat, code, population, capital) in merged:
+            name, uf = names.get(code, ("", ""))
+            if name:
+                yield (lon, lat, name, capital, population, f"{BRAZIL_COUNTRY} · {uf}")
+
+    def is_due(self) -> bool:
+        if not self.show_cities or not self._marker_states:
+            return False
+        if not municipalities.names():
+            return True
+        return any(not municipalities.is_ready(state) for state in self._marker_states)
+
+    def refresh_if_due(self, force: bool = False) -> bool:
+        """Download and read what the municipality labels of the view need (refresh thread)."""
+        if not self.enabled or not self.show_cities or not config.FETCH_NEW_DATA_FROM_API:
+            return False
+        states = self._marker_states
+        if not states:
+            return False
+        ibge.ensure_municipality_names()
+        cities = [*self._capitals, *self._cities]
+        for state in states:
+            if not municipalities.is_ready(state):
+                municipalities.prepare_state(state, cities)
+        return True
+
+    def reload(self) -> None:
+        self.dirty = True
 
     def _load_places(self) -> None:
         try:
