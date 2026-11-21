@@ -99,15 +99,17 @@ The IBGE outlines follow the zoom so that the detail matches the dots:
 
 | Zoom | State and municipality outlines | 1 dot (108 x 58 cells) |
 |---|---|---|
-| up to 32 | national files, `minima` quality (municipalities from zoom 8) | 1 km and more |
-| 32 to 128 | one file per state in view, `intermediaria` (a vertex every 1.2 km in Greater São Paulo) | about 1 km to 260 m |
-| 128 to 256 | one file per state in view, `maxima` (a vertex every 250 m) | about 530 m to 260 m |
+| up to 32 | national files, `minima` quality (municipalities from zoom 8) | 2.1 km and more |
+| 32 to 128 | one file per state in view, `intermediaria` (a vertex every 1.2 km in Greater São Paulo) | 2.1 km to 530 m |
+| 128 to 256 | one file per state in view, `maxima` (a vertex every 250 m) | 530 m to 260 m |
 
 A zoomed-in view never asks for a national file: the national municipality mesh (3.6 MB) is downloaded and drawn
 only for the wide views. The per-state files are downloaded the first time a view shows that state at that level
 (São Paulo: 1.0 MB `intermediaria`, 4.9 MB `maxima`; Minas Gerais `maxima`: 8.8 MB), read in the background, and kept
 for 30 days. While a new level loads, the previous outlines stay on the screen. The boxes of the states come from the
-national state file, which the tab reads at its home view.
+national state file (about 100 kB), which the tab reads at its home view; a view over the sea or a
+neighbouring country draws no IBGE outline. Offline, the cached files of a new level are read at once, which can
+pause the screen for up to a second for the largest states.
 
 From zoom 16 on, the core draws the coast from Natural Earth 1:10m (`map.zoom.detail_min`), so it matches the IBGE
 outlines at the coast.

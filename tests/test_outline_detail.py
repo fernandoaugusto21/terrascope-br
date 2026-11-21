@@ -98,13 +98,72 @@ def test_a_zoomed_in_view_never_downloads_a_national_file(cache, downloads):
     assert layer.items and layer.data_time is not None
 
 
-def test_without_state_boxes_the_municipalities_wait_instead_of_using_the_national_file(cache, downloads):
+def test_without_state_boxes_only_the_small_state_file_is_fetched(cache, monkeypatch):
+    # br_ufs switched off and never cached: the municipality layer fetches the boxes itself.
     store.path("ibge", "ufs.geojson").unlink()
+    urls = []
+
+    def fake_get(url, timeout, **kwargs):
+        urls.append(url)
+        if "/paises/BR" in url:
+            return 200, _collection([(SP, (-53.0, -25.5, -44.0, -19.5))]), {}
+        return 200, _collection([("x", (-46.8, -23.7, -46.4, -23.4))]), {}
+
+    monkeypatch.setattr(ibge, "get", fake_get)
+    layer = ibge.MunicipalityOutlinesLayer()
+    layer.enabled = True
+    assert layer.build(_view(200)).lines is None
+    assert layer.is_due()
+    layer.refresh_if_due()
+    assert len(urls) == 1 and "intrarregiao=UF" in urls[0]   # the state file, never the municipalities
+    layer.build(_view(200))
+    assert [f.name for f, _u in layer._wanted] == [f"mun-{SP}-maxima.geojson"]
+    layer.refresh_if_due()
+    layer.reload()
+    assert layer.items
+    assert all("intrarregiao=municipio" not in url or "/estados/" in url for url in urls)
+
+
+def test_a_view_over_the_sea_draws_no_outline_and_fetches_nothing(cache, downloads):
+    layer = ibge.StateOutlinesLayer()
+    layer.enabled = True
+    layer.build(_view(200, lon=-38.0, lat=-28.0))   # Atlantic, boxes known
+    assert layer._wanted == () and not layer.is_due() and downloads == []
+
+
+def test_a_damaged_state_file_is_removed_and_reported(cache, monkeypatch):
+    bad = store.path("ibge", f"mun-{SP}-maxima.geojson")
+    store.write_bytes(bad, b'{"features": [{"geometry": {"type": "Polygon", "coordinates": [[["a", "b"], ["c", "d"]]]}}]}')
     layer = ibge.MunicipalityOutlinesLayer()
     layer.enabled = True
     layer.build(_view(200))
-    assert not layer.is_due()
-    assert downloads == []
+    with pytest.raises(ibge.SourceError):
+        layer.refresh_if_due()
+    assert not bad.exists() and layer.error
+
+
+def test_the_old_outlines_stay_while_the_new_level_is_read(cache, downloads):
+    layer = ibge.MunicipalityOutlinesLayer()
+    layer.enabled = True
+    layer.build(_view(200))
+    layer.refresh_if_due()
+    layer.reload()
+    shown = layer.items
+    # The intermediaria file is on disk (another session) but not read yet.
+    store.write_bytes(store.path("ibge", f"mun-{SP}-intermediaria.geojson"),
+                      _collection([("y", (-47.0, -24.0, -46.0, -23.0))]))
+    layer.build(_view(40))
+    layer.reload()                    # e.g. a reload from elsewhere before the refresh thread ran
+    assert layer.items is shown       # not blanked, not parsed on the UI thread
+    assert layer.is_due()
+
+
+def test_parsed_files_are_bounded(cache):
+    for index in range(ibge.PARSED_LIMIT + 5):
+        file = store.path("ibge", f"mun-{index}-maxima.geojson")
+        store.write_bytes(file, _collection([("x", (0, 0, 1, 1))]))
+        ibge._cached(file, ibge._parse_rings)
+    assert len(ibge._parsed) == ibge.PARSED_LIMIT
 
 
 def test_files_already_read_are_shown_at_once_when_the_zoom_changes(cache, downloads):

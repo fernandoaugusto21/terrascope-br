@@ -12,7 +12,9 @@ whole country or of a region."""
 from __future__ import annotations
 
 import json
+import threading
 import time
+from collections import OrderedDict
 
 from terrascope.core import config
 from terrascope.core.layer import LayerRender
@@ -40,8 +42,11 @@ NAMES_FILE = "municipios_nivelado.json"
 
 # Parsed cache files, by path (and parser tag): (modification time, parsed value). A
 # file is parsed again only when it changes, so reload() on the UI thread does not
-# reread megabytes.
-_parsed: dict[str, tuple[float, object]] = {}
+# reread megabytes. The least recently used entries are dropped past PARSED_LIMIT, so
+# panning over many states does not keep every state's outlines in memory.
+_parsed: OrderedDict[str, tuple[float, object]] = OrderedDict()
+PARSED_LIMIT = 12
+_parsed_lock = threading.Lock()   # the refresh thread and the UI thread both use it
 
 def _is_fresh(file) -> bool:
     age = store.age(file)
@@ -53,19 +58,26 @@ def _cached(file, parse, tag: str = ""):
     missing."""
     stamp = file.stat().st_mtime
     key = str(file) + tag
-    hit = _parsed.get(key)
-    if hit is not None and hit[0] == stamp:
-        return hit[1]
+    with _parsed_lock:
+        hit = _parsed.get(key)
+        if hit is not None and hit[0] == stamp:
+            _parsed.move_to_end(key)
+            return hit[1]
     data = store.read_bytes(file)
     if data is None:
         raise OSError(f"cannot read {file}")
     value = parse(data)
-    _parsed[key] = (stamp, value)
+    with _parsed_lock:
+        _parsed[key] = (stamp, value)
+        _parsed.move_to_end(key)
+        while len(_parsed) > PARSED_LIMIT:
+            _parsed.popitem(last=False)
     return value
 
 def _is_parsed(file, tag: str = "") -> bool:
     """True when `file` was parsed already and has not changed since."""
-    hit = _parsed.get(str(file) + tag)
+    with _parsed_lock:
+        hit = _parsed.get(str(file) + tag)
     try:
         return hit is not None and hit[0] == file.stat().st_mtime
     except OSError:
@@ -80,9 +92,6 @@ def _download(url: str, file) -> None:
     if not isinstance(payload, dict) or not payload.get("features"):
         raise SourceError("IBGE map has no features")
     store.write_bytes(file, body)
-
-def _download_map(level: str, file) -> None:
-    _download(MALHA_URL.format(level=level), file)
 
 def _parse_rings(data: bytes):
     rings = rings_from_geojson(json.loads(data.decode("utf-8")))
@@ -161,6 +170,10 @@ class _OutlineLayer(SourceLayer):
         # `items` holds now. They differ while a new level of detail loads.
         self._wanted: tuple = self.start_pieces()
         self._loaded: tuple = ()
+        # True when the view needs the per-state files but the state boxes are not
+        # known yet: the small national state file is fetched for them.
+        self._needs_boxes = False
+        self._pieces_key = None
 
     # -- which files a view needs -----------------------------------------------------
     def national_piece(self):
@@ -171,29 +184,36 @@ class _OutlineLayer(SourceLayer):
         return (self.national_piece(),)
 
     def pieces_for(self, view: View) -> tuple:
+        """The files this view needs. Sets _needs_boxes."""
+        self._needs_boxes = False
         if view.zoom < self.min_zoom:
             return ()
         quality = detail_quality(view.zoom)
         if quality is None:
             return (self.national_piece(),)
-        codes = states_in_view(view)
-        if not codes:
-            # No state box known yet (national state file not cached): the national
-            # file of the states is cheap and brings the boxes; never the national
-            # municipalities at this zoom.
-            return (self.national_piece(),) if self.level == "UF" else ()
+        if not state_boxes():
+            # Which states are in view is not known yet: nothing is drawn until the
+            # national state file (about 100 kB) brings the boxes. Never a national
+            # outline file at this zoom.
+            self._needs_boxes = True
+            return ()
         prefix = "mun" if self.uf_level else "uf"
         return tuple(
             (store.path("ibge", f"{prefix}-{code}-{quality}.geojson"),
              UF_MALHA_URL.format(code=code, level=self.uf_level, quality=quality))
-            for code in codes
+            for code in states_in_view(view)   # () over the sea or a neighbour: nothing to draw
         )
 
     # -- refresh cycle -----------------------------------------------------------------
     def stamp_file(self):
         return store.path("ibge", self.cache_name)
 
+    def _boxes_file(self):
+        return store.path("ibge", "ufs.geojson")
+
     def is_due(self) -> bool:
+        if self._needs_boxes and not _is_fresh(self._boxes_file()):
+            return True
         wanted = self._wanted
         if not wanted:
             return False
@@ -203,16 +223,29 @@ class _OutlineLayer(SourceLayer):
         return wanted != self._loaded and any(not _is_parsed(file) for file, _url in wanted)
 
     def fetch(self) -> None:
+        if self._needs_boxes and not _is_fresh(self._boxes_file()):
+            _download(MALHA_URL.format(level="UF"), self._boxes_file())
         for file, url in self._wanted:
             if not _is_fresh(file):
                 _download(url, file)
             try:
                 _cached(file, _parse_rings)   # parse here, off the UI thread
-            except (OSError, ValueError) as error:
+            except Exception as error:
+                # A damaged file is removed, so the next refresh downloads it again.
+                file.unlink(missing_ok=True)
                 raise SourceError(f"IBGE map unreadable: {error}") from error
 
     def parse(self):
         wanted = self._wanted
+        if not wanted:
+            # Nothing drawn at this zoom: the legend tells the age of the national file.
+            self._loaded = ()
+            return [], _read_epoch(self.stamp_file())
+        if (self._loaded and config.FETCH_NEW_DATA_FROM_API
+                and any(not _is_parsed(file) for file, _url in wanted)):
+            # The new level is not read yet: keep the outlines on screen until the
+            # refresh thread has read it (then this runs again).
+            return self.items, self.data_time
         rings: list = []
         epochs: list[float] = []
         for file, _url in wanted:
@@ -222,9 +255,6 @@ class _OutlineLayer(SourceLayer):
             rings.extend(file_rings)
             epochs.append(epoch)
         self._loaded = wanted
-        if not wanted:
-            # Nothing drawn at this zoom: the legend tells the age of the national file.
-            epochs = [epoch for epoch in [_read_epoch(self.stamp_file())] if epoch is not None]
         return rings, (min(epochs) if epochs else None)
 
     def clear(self) -> None:
@@ -232,21 +262,24 @@ class _OutlineLayer(SourceLayer):
         self._lines_key = None
         self._lines = []
         self._loaded = ()
+        self._pieces_key = None
 
     def visible(self, view: View) -> bool:
         """Work out the files this view needs; False when nothing is drawn at its zoom.
-        A change is read at once when its files are parsed already (or nothing will be
-        fetched this session); otherwise the old outlines stay until the background
-        refresh has the new ones."""
-        wanted = self.pieces_for(view)
-        if wanted != self._wanted:
-            self._wanted = wanted
-            if wanted != self._loaded and (
-                all(_is_parsed(file) for file, _url in wanted) or not config.FETCH_NEW_DATA_FROM_API
-            ):
-                self.reload()
-                self._lines_key = None
-        return bool(wanted)
+        A change is read at once when its files are parsed already. Otherwise the old
+        outlines stay until the background refresh has read the new ones; offline,
+        where nothing is refreshed, the cached files are read here at once."""
+        key = view_key(view)
+        if key != self._pieces_key or self._needs_boxes:
+            self._pieces_key = key
+            wanted = self.pieces_for(view)
+            if wanted != self._wanted:
+                self._wanted = wanted
+                if wanted != self._loaded and (
+                    all(_is_parsed(file) for file, _url in wanted) or not config.FETCH_NEW_DATA_FROM_API
+                ):
+                    self.reload()
+        return bool(self._wanted)
 
     def build(self, view: View) -> LayerRender:
         # visible() runs first: it sets the wanted files even while the cache is empty,
