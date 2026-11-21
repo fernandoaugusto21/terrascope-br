@@ -28,6 +28,7 @@ import time
 import unicodedata
 from datetime import datetime
 from urllib.parse import quote
+from zoneinfo import ZoneInfo
 
 import numpy as np
 
@@ -49,15 +50,22 @@ INMET_URL = "https://apiprevmet3.inmet.gov.br/previsao/{code}"
 CPTEC_CITIES_URL = "https://servicos.cptec.inpe.br/XML/listaCidades?city={name}"
 CPTEC_FORECAST_URL = "https://servicos.cptec.inpe.br/XML/cidade/7dias/{city}/previsao.xml"
 CPTEC_IDS_FILE = "cptec_ids.json"
+SAO_PAULO_TIME = ZoneInfo("America/Sao_Paulo")   # the CGE's periods and clock
+BRAZIL_BOX = (-74.5, -34.5, -28.5, 5.6)           # west, south, east, north (with the islands)
+# The coarsest IBGE outlines cut corners: a city on the coast or on an island (Santos,
+# Vitória, Florianópolis) may fall just outside them. A place outside every outline
+# takes the nearest one whose edge is within this distance (degrees, about 15 km).
+NEAREST_TOLERANCE = 0.15
 
 # ---- words -> WMO code (the core draws icons and colours from WMO codes) --------
 
 # Most severe last: a day takes the code of its worst period.
-_SEVERITY = (0, 1, 2, 3, 45, 51, 61, 80, 95, 96)
+_SEVERITY = (0, 1, 2, 3, 45, 51, 61, 71, 80, 95, 96)
 _WORDS = (  # first match wins, so the specific phrases come first
     ("granizo", 96), ("tempestade", 95), ("trovoada", 95),
-    ("pancada", 80), ("chuvisco", 51), ("garoa", 51), ("chuva", 61), ("chuvoso", 61),
-    ("nevoeiro", 45), ("neblina", 45), ("geada", 3),
+    ("pancada", 80), ("instavel", 80), ("neve", 71), ("chuvisco", 51), ("garoa", 51),
+    ("chuva", 61), ("chuvoso", 61), ("nevoeiro", 45), ("neblina", 45),
+    ("geada", 0),  # frost comes with clear, cold nights
     ("parcialmente nublado", 2), ("sol entre nuvens", 2), ("variacao de nebulosidade", 2),
     ("poucas nuvens", 1), ("predominio de sol", 1),
     ("muitas nuvens", 3), ("encoberto", 3), ("nublado", 3),
@@ -140,14 +148,16 @@ def _file_lock(name: str) -> threading.Lock:
     with _lock:
         return _file_locks.setdefault(name, threading.Lock())
 
-def _parse_coded(data: bytes) -> list[tuple[str, list[np.ndarray]]]:
-    """(IBGE code, rings) per feature of an IBGE outline file."""
+def _parse_coded(data: bytes) -> list[tuple[str, tuple[float, float, float, float], list[np.ndarray]]]:
+    """(IBGE code, (west, south, east, north), rings) per feature of an IBGE outline file."""
     features = []
     for feature in json.loads(data.decode("utf-8")).get("features", []):
         code = str(((feature or {}).get("properties") or {}).get("codarea") or "")
-        rings = [ring.points for ring in ibge.rings_from_geojson({"features": [feature]})]
+        rings = ibge.rings_from_geojson({"features": [feature]})
         if code and rings:
-            features.append((code, rings))
+            box = (min(r.min_lon for r in rings), min(r.min_lat for r in rings),
+                   max(r.max_lon for r in rings), max(r.max_lat for r in rings))
+            features.append((code, box, [ring.points for ring in rings]))
     return features
 
 def _inside(rings: list[np.ndarray], lon: float, lat: float) -> bool:
@@ -162,27 +172,61 @@ def _inside(rings: list[np.ndarray], lon: float, lat: float) -> bool:
         inside ^= bool(np.count_nonzero(crosses & (lon < at)) % 2)
     return inside
 
-def _coded_file(file, url: str):
-    """The coded features of an outline file, downloaded first when missing or old."""
+def _coded_file(file, url: str, refresh: bool = True):
+    """The coded features of an outline file, downloaded first when missing (or, with
+    `refresh`, when old). A file that cannot be read is removed, so the next call
+    downloads it again."""
     with _file_lock(str(file)):
-        if not ibge._is_fresh(file):
+        if not file.exists() or (refresh and not ibge._is_fresh(file)):
             ibge._download(url, file)
-    return ibge._cached(file, _parse_coded, tag="#coded")
+        try:
+            return ibge._cached(file, _parse_coded, tag="#coded")
+        except (ValueError, KeyError, TypeError, AttributeError) as error:
+            file.unlink(missing_ok=True)
+            raise ValueError(f"{file.name} unreadable: {error}") from error
+
+def _edge_distance(rings: list[np.ndarray], lon: float, lat: float) -> float:
+    """Distance in degrees from the place to the nearest edge of the rings."""
+    nearest = float("inf")
+    for points in rings:
+        start, end = points[:-1], points[1:]
+        segment = end - start
+        length = np.einsum("ij,ij->i", segment, segment)
+        place = np.array([lon, lat])
+        with np.errstate(divide="ignore", invalid="ignore"):
+            along = np.clip(np.einsum("ij,ij->i", place - start, segment) / length, 0.0, 1.0)
+        along = np.nan_to_num(along)  # zero-length segments: their start point
+        closest = start + segment * along[:, None]
+        if len(closest):
+            nearest = min(nearest, float(np.min(np.hypot(*(closest - place).T))))
+    return nearest
 
 def _code_at(features, lon: float, lat: float) -> str | None:
-    for code, rings in features:
-        if _inside(rings, lon, lat):
+    """The feature containing the place; else the nearest one within NEAREST_TOLERANCE."""
+    near = []
+    for code, (west, south, east, north), rings in features:
+        if west <= lon <= east and south <= lat <= north and _inside(rings, lon, lat):
             return code
-    return None
+        if (west - NEAREST_TOLERANCE <= lon <= east + NEAREST_TOLERANCE
+                and south - NEAREST_TOLERANCE <= lat <= north + NEAREST_TOLERANCE):
+            near.append((code, rings))
+    best = min(((_edge_distance(rings, lon, lat), code) for code, rings in near), default=None)
+    return best[1] if best is not None and best[0] <= NEAREST_TOLERANCE else None
 
 def municipality_at(latitude: float, longitude: float) -> str | None:
     """IBGE code of the municipality at a place, or None outside Brazil. Raises
     WeatherFetchError when the outlines cannot be read."""
+    west, south, east, north = BRAZIL_BOX
+    if not (west <= longitude <= east and south <= latitude <= north):
+        return None  # far from Brazil: no file is read or downloaded
     key = (round(latitude, 4), round(longitude, 4))
     if key in _found:
         return _found[key]
     try:
-        states = _coded_file(store.path("ibge", "ufs.geojson"), ibge.MALHA_URL.format(level="UF"))
+        # The br_ufs layer keeps this file fresh; here it is only downloaded when
+        # missing, so the two never write it at the same time in normal use.
+        states = _coded_file(store.path("ibge", "ufs.geojson"), ibge.MALHA_URL.format(level="UF"),
+                             refresh=False)
         state = _code_at(states, longitude, latitude)
         code = None
         if state is not None:
@@ -245,34 +289,43 @@ def parse_cge_forecast(page: str) -> list[dict]:
         raise ValueError("no day in the CGE forecast page")
     return days
 
-def _station_value(page: str, heading: str, label: str) -> str | None:
-    """The value after `label` in the station table under the `heading` column."""
-    tables = re.findall(r'<table[^>]*class="dados_estacoes".*?</table>', page, flags=re.S)
-    headings = [_strip(cell) for cell in re.findall(r"<th>(.*?)</th>", page, flags=re.S)]
-    if heading not in headings or headings.index(heading) >= len(tables):
-        return None
-    table = tables[headings.index(heading)]
-    for name, value in re.findall(r"<strong>(.*?)</strong></td>\s*<td[^>]*>(.*?)</td>", table, flags=re.S):
-        if _strip(name).rstrip(":") == label:
-            return _strip(value)
-    return None
+def _station_value(page: str, label: str) -> str | None:
+    """The value after `label` in the station tables, when the label is there once
+    (an ambiguous label gives None, never another table's value)."""
+    values = [
+        _strip(value)
+        for name, value in re.findall(r"<strong>(.*?)</strong></td>\s*<td[^>]*>(.*?)</td>", page, flags=re.S)
+        if _strip(name).rstrip(":") == label
+    ]
+    return values[0] if len(values) == 1 else None
+
+def _station_temperature(page: str) -> float | None:
+    """The current temperature: the "Atual" row whose value is a temperature
+    ("tempmedio"); the humidity, wind and pressure "Atual" rows are not. Exactly
+    one such row, or None."""
+    values = re.findall(
+        r'<strong>Atual:</strong></td>\s*<td[^>]*>\s*<span class="tempmedio">([^<]*)<', page)
+    return _number(values[0]) if len(values) == 1 else None
 
 def period_now(hour: int) -> str:
     return PERIODS[min(3, max(0, hour // 6))]
 
-def parse_cge_station(page: str, today: dict | None, now: datetime) -> dict:
-    """Current conditions of a CGE station page. The conditions words come from
-    today's forecast period (the station has no sky reading). Raises ValueError
-    without a temperature."""
-    temperature = _number(_station_value(page, "Temperatura", "Atual"))
+def parse_cge_station(page: str, forecast: list[dict], now: datetime) -> dict:
+    """Current conditions of a CGE station page, at `now` (São Paulo time). The
+    conditions words come from the period of today's forecast (the station has no
+    sky reading); a forecast that does not start today gives none. The page has no
+    reading time, so `now` (the fetch) is given as the observation time. Raises
+    ValueError without a temperature."""
+    temperature = _station_temperature(page)
     if temperature is None:
         raise ValueError("no current temperature on the CGE station page")
+    today = next((day for day in forecast if day.get("date") == now.date().isoformat()), None)
     periods = dict((today or {}).get("periods") or [])
     summary = periods.get(period_now(now.hour)) or (today or {}).get("summary")
     return {
         "temperature": temperature,
-        "windspeed": _number(_station_value(page, "Vento", "Velocidade")),
-        "winddirection": compass_degrees(_station_value(page, "Vento", "Direção")),
+        "windspeed": _number(_station_value(page, "Velocidade")),
+        "winddirection": compass_degrees(_station_value(page, "Direção")),
         "weathercode": wmo_code(summary) if summary else None,
         "summary": summary,
         "time": now.strftime("%Y-%m-%dT%H:%M"),
@@ -295,7 +348,7 @@ class CgeProvider(WeatherProvider):
             errors.append(f"forecast: {error}")
         try:
             page = _page(CGE_STATION_URL.format(station=CGE_STATION), CGE_CURRENT_SECONDS)
-            current = parse_cge_station(page, forecast[0] if forecast else None, datetime.now())
+            current = parse_cge_station(page, forecast, datetime.now(SAO_PAULO_TIME))
         except (WeatherFetchError, ValueError) as error:
             errors.append(f"station: {error}")
         if current is None and not forecast:
@@ -345,25 +398,45 @@ def parse_cptec(xml: str) -> list[dict]:
         raise ValueError("no day in the CPTEC forecast")
     return days
 
+def _known_cptec_ids(file) -> dict:
+    try:
+        known = json.loads((store.read_bytes(file) or b"{}").decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        return {}
+    return known if isinstance(known, dict) else {}
+
 def _cptec_city(code: str) -> str:
-    """The CPTEC id of an IBGE municipality, found by name and state once and kept."""
+    """The CPTEC id of an IBGE municipality, found by name and state once and kept
+    ("" = CPTEC does not list it, also kept). The lock covers the file only, not
+    the lookups on the network."""
     file = store.path("cptec", CPTEC_IDS_FILE)
     with _file_lock(str(file)):
-        known = json.loads((store.read_bytes(file) or b"{}").decode("utf-8"))
-        if code in known:
-            return known[code]
+        known = _known_cptec_ids(file)
+    if code in known:
+        if not known[code]:
+            raise WeatherFetchError(f"CPTEC does not list municipality {code}")
+        return known[code]
+    try:
         ibge.ensure_municipality_names()
-        name, uf = ibge.municipality_names().get(code, ("", ""))
-        if not name:
-            raise WeatherFetchError(f"no IBGE name for {code}")
-        xml = _text(_fetch(CPTEC_CITIES_URL.format(name=quote(_plain(name)))))
-        for found_name, found_uf, city in re.findall(
-                r"<nome>([^<]*)</nome><uf>([^<]*)</uf><id>(\d+)</id>", xml):
-            if _plain(found_name) == _plain(name) and found_uf == uf:
-                known[code] = city
-                store.write_bytes(file, json.dumps(known).encode("utf-8"))
-                return city
-    raise WeatherFetchError(f"CPTEC does not list {name}/{uf}")
+    except SourceError as error:
+        raise WeatherFetchError(f"IBGE names: {error}") from error
+    name, uf = ibge.municipality_names().get(code, ("", ""))
+    if not name:
+        raise WeatherFetchError(f"no IBGE name for {code}")
+    xml = _text(_fetch(CPTEC_CITIES_URL.format(name=quote(_plain(name)))))
+    city = next((found for found_name, found_uf, found in re.findall(
+        r"<nome>([^<]*)</nome><uf>([^<]*)</uf><id>(\d+)</id>", xml)
+        if _plain(found_name) == _plain(name) and found_uf == uf), "")
+    with _file_lock(str(file)):
+        known = _known_cptec_ids(file)
+        known[code] = city
+        try:
+            store.write_bytes(file, json.dumps(known).encode("utf-8"))
+        except OSError:
+            pass  # not kept: looked up again next time
+    if not city:
+        raise WeatherFetchError(f"CPTEC does not list {name}/{uf}")
+    return city
 
 class FederalForecastProvider(WeatherProvider):
     """Every municipality of Brazil: INMET, or CPTEC/INPE when INMET fails.
@@ -384,7 +457,7 @@ class FederalForecastProvider(WeatherProvider):
             try:
                 xml = _text(_fetch(CPTEC_FORECAST_URL.format(city=_cptec_city(code))))
                 return WeatherReading(forecast=parse_cptec(xml), forecast_source="CPTEC/INPE")
-            except (WeatherFetchError, ValueError, SourceError) as cptec_error:
+            except (WeatherFetchError, ValueError, SourceError, OSError) as cptec_error:
                 raise WeatherFetchError(f"INMET: {inmet_error}; CPTEC: {cptec_error}") from cptec_error
 
 def providers() -> list[WeatherProvider]:

@@ -42,7 +42,8 @@ def _core_tab_keys() -> frozenset:
 
 
 def check() -> list[str]:
-    """The problems found, one line each. An empty list means the tab loads."""
+    """The problems found, one line each. An empty list means the tab, the layers and
+    the weather providers load."""
     try:
         core = importlib.metadata.version("terrascope")
     except importlib.metadata.PackageNotFoundError:
@@ -53,15 +54,16 @@ def check() -> list[str]:
             f"terrascope {core} has no plugin support (terrascope.core.plugins): "
             "install a Terrascope build with plugins, as the README says"
         )
-    elif importlib.util.find_spec("terrascope.layers.weather.providers") is None:
-        problems.append(
-            f"terrascope {core} has no weather providers (terrascope.layers.weather.providers), so "
-            "the CGE / INMET weather would not be used: update Terrascope from its main branch"
-        )
     elif "zoom_max" not in _core_tab_keys():
         problems.append(
             f"terrascope {core} does not know a tab's zoom_max, so it would skip the BRASIL tab: "
             "update Terrascope from its main branch, as the README says"
+        )
+    if importlib.util.find_spec("terrascope.layers.weather.providers") is None:
+        # The tab loads without it; the city weather then stays on Open-Meteo.
+        problems.append(
+            f"terrascope {core} has no weather providers (terrascope.layers.weather.providers): the "
+            "tab loads, but the CGE / INMET weather is not used; update Terrascope from its main branch"
         )
     for group, expected in ((TAB_GROUP, EXPECTED_TABS), (LAYER_GROUP, EXPECTED_LAYERS),
                             (PROVIDER_GROUP, EXPECTED_PROVIDERS)):

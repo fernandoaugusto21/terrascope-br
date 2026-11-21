@@ -37,7 +37,7 @@ def test_cge_forecast_has_three_days_with_their_periods():
 
 def test_cge_station_gives_the_current_conditions():
     today = wp.parse_cge_forecast(_read("cge_previsao_estendida.html"))[0]
-    now = wp.parse_cge_station(_read("cge_estacao_503.html"), today, datetime(2026, 11, 21, 8, 30))
+    now = wp.parse_cge_station(_read("cge_estacao_503.html"), [today], datetime(2026, 11, 21, 8, 30))
     assert now["temperature"] == 30.0 and now["windspeed"] == 10.8
     assert now["winddirection"] == 225.0                       # "SW"
     assert now["summary"] == "Nublado" and now["weathercode"] == 3   # the morning period
@@ -48,7 +48,7 @@ def test_cge_pages_without_data_are_errors():
     with pytest.raises(ValueError):
         wp.parse_cge_forecast("<html>manutenção</html>")
     with pytest.raises(ValueError):
-        wp.parse_cge_station("<html></html>", None, datetime(2026, 11, 21))
+        wp.parse_cge_station("<html></html>", [], datetime(2026, 11, 21))
 
 
 def test_inmet_days_take_the_extremes_and_the_worst_period():
@@ -205,3 +205,74 @@ def test_the_chain_by_region(cache, monkeypatch):
     assert (guarulhos.current_source, guarulhos.forecast_source) == ("Open-Meteo", "INMET")
     abroad = fetch_reading(-34.6, -58.4, chain)            # Buenos Aires: outside Brazil
     assert (abroad.current_source, abroad.forecast_source) == ("Open-Meteo", "Open-Meteo")
+
+
+# ---- review fixes ------------------------------------------------------------------
+
+def test_a_coastal_place_just_outside_the_coarse_outline_takes_the_nearest(cache):
+    # 0.05 degrees east of the capital's box (on the "sea"): still São Paulo.
+    assert wp.municipality_at(-23.7, -46.31) == wp.SAO_PAULO
+    assert wp.municipality_at(-23.7, -46.0) is None          # 0.36 degrees away: not taken
+
+
+def test_far_from_brazil_no_file_is_read(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "CACHE_DIR", tmp_path)
+    wp._found.clear()
+    monkeypatch.setattr(ibge, "get", lambda *a, **k: pytest.fail("no download for Paris"))
+    assert wp.municipality_at(48.85, 2.35) is None
+
+
+def test_a_damaged_state_file_is_removed(cache):
+    store.write_bytes(store.path("ibge", "mun-35-minima.geojson"), b'{"features": [{"properties": {"codarea": "1"}, '
+                      b'"geometry": {"type": "Polygon", "coordinates": [[["a", "b"], ["c", "d"]]]}}]}')
+    with pytest.raises(WeatherFetchError):
+        wp.municipality_at(*SP_CENTRE)
+    assert not store.path("ibge", "mun-35-minima.geojson").exists()
+
+
+def test_the_current_words_need_a_forecast_for_today():
+    days = wp.parse_cge_forecast(_read("cge_previsao_estendida.html"))
+    page = _read("cge_estacao_503.html")
+    late = wp.parse_cge_station(page, days, datetime(2026, 11, 24, 1, 0))   # the page still starts on the 21st
+    assert late["summary"] is None and late["weathercode"] is None
+    night = wp.parse_cge_station(page, days, datetime(2026, 11, 21, 23, 0))
+    assert night["summary"] == "Pancadas isoladas"                       # "Noite"
+
+
+def test_the_cge_clock_is_sao_paulo_time(cache, monkeypatch):
+    _serve(monkeypatch, CGE_PAGES)
+    seen = []
+    real = wp.parse_cge_station
+    monkeypatch.setattr(wp, "parse_cge_station", lambda page, forecast, now: seen.append(now) or real(page, forecast, now))
+    wp.CgeProvider().fetch(*SP_CENTRE)
+    assert seen[0].tzinfo is not None and seen[0].utcoffset() == wp.SAO_PAULO_TIME.utcoffset(seen[0])
+
+
+def test_an_ambiguous_station_label_gives_nothing():
+    page = _read("cge_estacao_503.html")
+    assert wp._station_value(page, "Atual") is None                       # three "Atual" rows
+    assert wp._station_value(page, "Velocidade") == "10.8 km/h"
+
+
+def test_a_municipality_cptec_does_not_list_is_remembered(cache, monkeypatch):
+    store.write_bytes(store.path("ibge", ibge.NAMES_FILE),
+                      json.dumps([{"municipio-id": 3518800, "municipio-nome": "Guarulhos", "UF-sigla": "SP"}]).encode())
+    asked = _serve(monkeypatch, {"apiprevmet3": SourceError("HTTP 503"), "listaCidades": b"<cidades></cidades>"})
+    for _ in range(2):
+        with pytest.raises(WeatherFetchError):
+            wp.FederalForecastProvider().fetch(*GUARULHOS)
+    assert sum("listaCidades" in url for url in asked) == 1
+
+
+def test_an_unwritable_id_file_does_not_lose_the_cptec_forecast(cache, monkeypatch):
+    store.write_bytes(store.path("ibge", ibge.NAMES_FILE),
+                      json.dumps([{"municipio-id": 3518800, "municipio-nome": "Guarulhos", "UF-sigla": "SP"}]).encode())
+    _serve(monkeypatch, {
+        "apiprevmet3": SourceError("HTTP 503"),
+        "listaCidades": b"<cidades><cidade><nome>Guarulhos</nome><uf>SP</uf><id>2075</id></cidade></cidades>",
+        "/7dias/2075/": (DATA / "cptec_previsao_4480.xml").read_bytes(),
+    })
+    real_write = store.write_bytes
+    monkeypatch.setattr(store, "write_bytes", lambda file, data: (_ for _ in ()).throw(PermissionError("locked"))
+                        if file.name == wp.CPTEC_IDS_FILE else real_write(file, data))
+    assert wp.FederalForecastProvider().fetch(*GUARULHOS).forecast_source == "CPTEC/INPE"

@@ -98,3 +98,11 @@ def test_core_without_weather_providers_is_reported(monkeypatch):
 def test_missing_weather_provider_entry_point_is_reported(monkeypatch):
     _tables(monkeypatch, providers=())
     assert any("terrascope.weather_providers / br" in line for line in check_command.check())
+
+
+def test_both_core_problems_are_reported_together(monkeypatch):
+    _tables(monkeypatch, core_providers=False)
+    monkeypatch.setattr(check_command, "_core_tab_keys", lambda: frozenset({"name"}))
+    problems = check_command.check()
+    assert any("weather providers" in line for line in problems)
+    assert any("zoom_max" in line for line in problems)
