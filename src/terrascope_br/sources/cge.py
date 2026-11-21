@@ -245,8 +245,6 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
     source_name = _("CGE flood risk, São Paulo city")
     info_title = _("CGE REGION")
     credit = "CGE"   # in the tab's credits; GeoSampa is named by credits() while the outlines show
-    # GeoSampa's licence (CC BY-SA 4.0) asks for the source and the licence to be named.
-    OUTLINE_CREDIT = "GeoSampa / Prefeitura de São Paulo, CC BY-SA 4.0"
     refresh_seconds = 300
     stale_after_seconds = 3600
 
@@ -342,6 +340,7 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
         super().clear()
         self._outline_key = None
         self._outline_lines = []
+        self._drawn = False
 
     # -- drawing ----------------------------------------------------------------------
     def _in_view(self, view: View) -> bool:
@@ -363,15 +362,17 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
         return LayerRender(self._outline_lines, OUTLINE_COLOR, markers=flagged.markers, bg_cells=flagged.bg_cells)
 
     def credits(self) -> list[str]:
-        """The CGE and the outlines' source and licence, while the layer draws (see the core's Layer.credits)."""
+        """The outlines' source and licence while they are drawn (see the core's
+        Layer.credits): GeoSampa's licence, CC BY-SA 4.0, asks for both to be
+        named. The licence comes first, so a narrow map cuts the rest. The CGE is
+        in the tab's credits already."""
         if not (self.enabled and self.shown and self._drawn):
             return []
-        return [f"CGE (Prefeitura de São Paulo) · {self.OUTLINE_CREDIT}"]
+        return [_("GeoSampa (CC BY-SA 4.0), City of São Paulo")]
 
-    def render(self, view: View) -> LayerRender:
-        if not self.shown:
-            self._drawn = False
-        return super().render(view)
+    def _flip(self) -> None:
+        super()._flip()
+        self._drawn = False   # set again by the next build() when switched back on
 
     # -- legend and info box ---------------------------------------------------------
     def legend_key(self):

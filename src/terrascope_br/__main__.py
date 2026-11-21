@@ -65,6 +65,15 @@ def check() -> list[str]:
             f"terrascope {core} has no weather providers (terrascope.layers.weather.providers): the "
             "tab loads, but the CGE / INMET weather is not used; update Terrascope from its main branch"
         )
+    else:
+        from terrascope.core.layer import Layer
+
+        if not callable(getattr(Layer, "credits", None)):
+            # The tab loads; GeoSampa goes in the tab's credits line instead.
+            problems.append(
+                f"terrascope {core} does not draw the layers' own credits (Layer.credits): the "
+                "selected city's weather source is not named on the map; update Terrascope from its main branch"
+            )
     for group, expected in ((TAB_GROUP, EXPECTED_TABS), (LAYER_GROUP, EXPECTED_LAYERS),
                             (PROVIDER_GROUP, EXPECTED_PROVIDERS)):
         registered = _names_registered_by_this_package(group)

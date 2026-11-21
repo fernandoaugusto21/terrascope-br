@@ -261,10 +261,23 @@ def test_geosampa_and_its_licence_are_named_while_the_outlines_show(layer):
     assert layer.credits() == []                       # nothing drawn yet
     layer.build(CITY)
     (line,) = layer.credits()
-    assert "GeoSampa" in line and "CC BY-SA 4.0" in line and "CGE" in line
+    assert line.startswith("GeoSampa (CC BY-SA 4.0)")   # the licence before what a narrow map cuts
     layer.build(View(-43.2, -22.9, 64, 120, 40))      # Rio: not drawn
     assert layer.credits() == []
     layer.build(CITY)
     layer.press_legend(layer.switch_action)            # switched off
-    layer.render(CITY)
     assert layer.credits() == []
+    layer.press_legend(layer.switch_action)            # on again: named after the next drawing
+    assert layer.credits() == []
+    layer.build(CITY)
+    assert len(layer.credits()) == 1
+    layer.clear()
+    assert layer.credits() == []
+
+
+def test_an_older_core_gets_geosampa_in_the_tab_line(monkeypatch):
+    from terrascope_br import tabs
+
+    assert "GeoSampa" not in tabs.brasil_tabs()[0]["attribution"]
+    monkeypatch.setattr(tabs, "_core_names_layer_credits", lambda: False)
+    assert tabs.brasil_tabs()[0]["attribution"].endswith("GeoSampa (CC BY-SA 4.0)")

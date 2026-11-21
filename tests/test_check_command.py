@@ -106,3 +106,12 @@ def test_both_core_problems_are_reported_together(monkeypatch):
     problems = check_command.check()
     assert any("weather providers" in line for line in problems)
     assert any("zoom_max" in line for line in problems)
+
+
+def test_core_without_layer_credits_is_reported(monkeypatch):
+    from terrascope.core.layer import Layer
+
+    _tables(monkeypatch)
+    monkeypatch.delattr(Layer, "credits")
+    problems = check_command.check()
+    assert any("Layer.credits" in line for line in problems)

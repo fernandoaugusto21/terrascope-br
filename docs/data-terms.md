@@ -164,8 +164,7 @@ Notes:
 Notes:
 
 - What the app shows: the provider name "CGE" in the info box and in the forecast title of the city of São Paulo, the
-  map credit "CGE: weather of São Paulo" while that city is selected, "CGE" in the tab's credits, and "CGE (Prefeitura
-  de São Paulo)" while the flood-risk regions are drawn.
+  map credit "CGE: weather of São Paulo" while that city is selected, and "CGE" in the tab's credits.
 - Reading HTML and an image is fragile and not an agreed interface: a new layout shows up as "update failed", never as
   wrong data, and the next provider answers for the weather (see the README).
 - Open: ask the CGE (contact on its site) whether the reuse is fine and whether a data feed exists.
@@ -222,7 +221,8 @@ Notes:
 Notes:
 
 - The plugin keeps a thinned copy of the outlines in the user's cache; it does not republish them. The map names the
-  source and the licence while the regions are drawn: "GeoSampa / Prefeitura de São Paulo, CC BY-SA 4.0".
+  source and the licence while the regions are drawn: "GeoSampa (CC BY-SA 4.0), City of São Paulo" (licence first, so
+  a narrow map cuts the rest).
 
 ## Cross-source points
 
@@ -247,7 +247,8 @@ has `Layer.credits`):
 
 - the selected city's weather: `<current source> · forecast <forecast source>: weather of <city>` (pt_BR:
   `...: tempo em <cidade>`), so CPTEC/INPE is named whenever its forecast is on screen, as its terms ask;
-- the CGE flood-risk regions: `CGE (Prefeitura de São Paulo) · GeoSampa / Prefeitura de São Paulo, CC BY-SA 4.0`.
+- the CGE flood-risk regions: `GeoSampa (CC BY-SA 4.0), City of São Paulo` (pt_BR: `..., Prefeitura de São
+  Paulo`); with a core that does not draw the layers' credits, `GeoSampa (CC BY-SA 4.0)` goes in the tab's line.
 
 The core cuts each line to the map width, so on a narrow terminal the end of a line can be cut. City labels keep clear
 of every credit line and of the footer row (slider and scale bar).

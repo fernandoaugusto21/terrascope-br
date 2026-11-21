@@ -198,7 +198,7 @@ reads, what the source publishes about reuse, attribution, request limits, comme
 and access date of every statement. Where a source publishes no terms, the document says so. The credits are shown in
 the BRASIL tab attribution; sources shown only now and then are named on their own map lines while they show (the
 selected city's weather source, which names CPTEC/INPE whenever its forecast is on screen as its terms ask, and
-"GeoSampa ... CC BY-SA 4.0" while the CGE regions are drawn). The weather sources (CGE, INMET, CPTEC/INPE) and GeoSampa
+"GeoSampa (CC BY-SA 4.0), ..." while the CGE regions are drawn). The weather sources (CGE, INMET, CPTEC/INPE) and GeoSampa
 were checked on 2026-11-21: CPTEC/INPE does not allow commercial use or reproduction "em meios de divulgação" without
 its authorisation, and the CGE publishes no terms; both are open items there.
 RainViewer (global rain) and Open-Meteo (city temperatures), read by the global layers, are not covered by that
