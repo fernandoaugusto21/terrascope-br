@@ -201,17 +201,31 @@ def _edge_distance(rings: list[np.ndarray], lon: float, lat: float) -> float:
             nearest = min(nearest, float(np.min(np.hypot(*(closest - place).T))))
     return nearest
 
+def _codes_near(features, lon: float, lat: float) -> list[str]:
+    """The feature containing the place first (when one does), then the others whose
+    edge is within NEAREST_TOLERANCE, nearest first."""
+    inside, near = [], []
+    for code, (west, south, east, north), rings in features:
+        if west <= lon <= east and south <= lat <= north and _inside(rings, lon, lat):
+            inside.append(code)
+        elif (west - NEAREST_TOLERANCE <= lon <= east + NEAREST_TOLERANCE
+                and south - NEAREST_TOLERANCE <= lat <= north + NEAREST_TOLERANCE):
+            distance = _edge_distance(rings, lon, lat)
+            if distance <= NEAREST_TOLERANCE:
+                near.append((distance, code))
+    return inside[:1] + [code for _distance, code in sorted(near)]
+
 def _code_at(features, lon: float, lat: float) -> str | None:
     """The feature containing the place; else the nearest one within NEAREST_TOLERANCE."""
-    near = []
+    codes = _codes_near(features, lon, lat)
+    return codes[0] if codes else None
+
+def _strictly_in(features, lon: float, lat: float) -> str | None:
+    """The feature containing the place, or None (no tolerance)."""
     for code, (west, south, east, north), rings in features:
         if west <= lon <= east and south <= lat <= north and _inside(rings, lon, lat):
             return code
-        if (west - NEAREST_TOLERANCE <= lon <= east + NEAREST_TOLERANCE
-                and south - NEAREST_TOLERANCE <= lat <= north + NEAREST_TOLERANCE):
-            near.append((code, rings))
-    best = min(((_edge_distance(rings, lon, lat), code) for code, rings in near), default=None)
-    return best[1] if best is not None and best[0] <= NEAREST_TOLERANCE else None
+    return None
 
 def municipality_at(latitude: float, longitude: float) -> str | None:
     """IBGE code of the municipality at a place, or None outside Brazil. Raises
@@ -227,14 +241,22 @@ def municipality_at(latitude: float, longitude: float) -> str | None:
         # missing, so the two never write it at the same time in normal use.
         states = _coded_file(store.path("ibge", "ufs.geojson"), ibge.MALHA_URL.format(level="UF"),
                              refresh=False)
-        state = _code_at(states, longitude, latitude)
+        # The national state file is coarser than each state's municipality file, so
+        # near a border the place may fall in the neighbour state: its municipality is
+        # looked for in the state that contains it first, then in the states nearby.
         code = None
-        if state is not None:
+        nearest = None
+        for state in _codes_near(states, longitude, latitude)[:3]:
             towns = _coded_file(
                 store.path("ibge", f"mun-{state}-minima.geojson"),
                 ibge.UF_MALHA_URL.format(code=state, level="&intrarregiao=municipio", quality="minima"),
             )
-            code = _code_at(towns, longitude, latitude)
+            code = _strictly_in(towns, longitude, latitude)
+            if code is not None:
+                break
+            if nearest is None:
+                nearest = _code_at(towns, longitude, latitude)
+        code = code or nearest
     except (SourceError, OSError, ValueError) as error:
         raise WeatherFetchError(f"IBGE outlines: {error}") from error
     _found[key] = code

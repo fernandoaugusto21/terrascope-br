@@ -26,7 +26,7 @@ from terrascope_br.sources.weather_providers import _code_at, _coded_file, _insi
 MARKER_MIN_ZOOM = ibge.UF_DETAIL_ZOOM
 SCAN_FRACTIONS = (0.5, 0.35, 0.65, 0.2, 0.8)  # heights (of the box) tried for a point inside
 
-# state code -> (modification time of its file, places best first). Written by the
+# state code -> (length of the city list used, places best first). Written by the
 # refresh thread, read by the UI thread (one dict assignment per state).
 _ready: dict[str, tuple[float, list[tuple[float, float, str, int | None, bool]]]] = {}
 _lock = threading.Lock()
@@ -74,47 +74,60 @@ def interior_point(rings: list[np.ndarray]) -> tuple[float, float]:
     return best[1], best[2]
 
 
-def build_places(features, cities) -> list[tuple[float, float, str, int | None, bool]]:
-    """(lon, lat, IBGE code, population or None, has a capital) per municipality,
-    best first. `features` as weather_providers._parse_coded gives them; `cities`
-    are Natural Earth places (lon, lat, name, is_capital, population, country)
-    that lend their population to the municipality they fall in."""
-    population: dict[str, int] = {}
+def build_places(features, cities) -> list[tuple[float, float, str, int | None, bool, float]]:
+    """(lon, lat, IBGE code, population or None, has a capital, area) per
+    municipality, best first. `features` as weather_providers._parse_coded gives
+    them; `cities` are Natural Earth places (lon, lat, name, is_capital,
+    population, country) that lend their population to the municipality they fall
+    in (None stays None: unknown, not zero)."""
+    population: dict[str, int | None] = {}
     capital: set[str] = set()
     for lon, lat, _name, is_capital, people, _country in cities:
         code = _code_at(features, lon, lat)
         if code is None:
             continue
-        population[code] = max(population.get(code, 0), int(people or 0))
+        if people is not None:
+            population[code] = max(population.get(code) or 0, int(people))
+        else:
+            population.setdefault(code, None)
         if is_capital:
             capital.add(code)
-    ranked = []
+    places = []
     for code, _box, rings in features:
         lon, lat = interior_point(rings)
         area = max(ring_area(points) for points in rings)
-        ranked.append(((-population.get(code, -1), -area), (lon, lat, code, population.get(code), code in capital)))
-    ranked.sort(key=lambda pair: pair[0])
-    return [place for _rank, place in ranked]
+        places.append((lon, lat, code, population.get(code), code in capital, area))
+    places.sort(key=rank)
+    return places
 
 
-def is_ready(state: str) -> bool:
-    """True when the places of `state` match its file on disk."""
-    file, _url = minima_piece(state)
+def rank(place) -> tuple:
+    """Sort key of a place: those with a known city population first (biggest
+    first), then by area (biggest first). Also used to merge several states."""
+    population, area = place[3], place[5]
+    return (population is None, -(population or 0), -area)
+
+
+def is_ready(state: str, city_count: int) -> bool:
+    """True when the places of `state` were worked out with a city list of this
+    length (the Natural Earth list may arrive after a first pass that had none).
+    No file access: the UI thread asks on every tick."""
     hit = _ready.get(state)
-    try:
-        return hit is not None and hit[0] == file.stat().st_mtime
-    except OSError:
-        return False
+    return hit is not None and hit[0] == city_count
 
 
-def prepare_state(state: str, cities) -> None:
-    """Download (when missing or old) and read one state's municipalities, and
-    work out their places. Runs on a refresh thread. Raises SourceError,
-    OSError or ValueError."""
+def prepare_state(state: str, cities, download: bool = True) -> bool:
+    """Read one state's municipalities (downloading the file when missing or old,
+    unless `download` is False) and work out their places. Runs on a refresh
+    thread. False when the file is not there and may not be downloaded. Raises
+    SourceError, OSError or ValueError."""
     file, url = minima_piece(state)
+    if not download and not file.exists():
+        return False
     with _lock:
-        features = _coded_file(file, url)
-        _ready[state] = (file.stat().st_mtime, build_places(features, cities))
+        features = _coded_file(file, url, refresh=download)
+        _ready[state] = (len(cities), build_places(features, cities))
+    return True
 
 
 def ready_places(state: str) -> list | None:
@@ -123,22 +136,20 @@ def ready_places(state: str) -> list | None:
     return hit[1] if hit is not None else None
 
 
-_names: tuple[float, dict[str, tuple[str, str]]] | None = None
+_names: dict[str, tuple[str, str]] = {}
 
 
 def names() -> dict[str, tuple[str, str]]:
-    """IBGE code -> (name, UF), kept here while the file is unchanged: the parsed
-    files of ibge.py are a small shared cache, and the labels ask for the names on
-    every redraw. {} until the list is downloaded."""
+    """IBGE code -> (name, UF), as load_names() last read it; {} before. No file
+    access: the labels ask on every redraw."""
+    return _names
+
+
+def load_names() -> bool:
+    """Read the IBGE municipality list from the cache (refresh thread). False when
+    it is not there."""
     global _names
-    file = store.path("ibge", ibge.NAMES_FILE)
-    try:
-        stamp = file.stat().st_mtime
-    except OSError:
-        return {}
-    if _names is not None and _names[0] == stamp:
-        return _names[1]
     value = ibge.municipality_names()
     if value:
-        _names = (stamp, value)
-    return value
+        _names = value
+    return bool(value)

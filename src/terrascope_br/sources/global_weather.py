@@ -57,6 +57,7 @@ from terrascope.layers.weather.radar import (
 from terrascope_br._i18n import _
 from terrascope_br.base import key as legend_key, utc_text
 from terrascope_br.geo import view_key
+from terrascope_br.net import SourceError
 from terrascope_br.sources import ibge, municipalities
 from terrascope_br.sources.ibge import state_rings
 
@@ -272,6 +273,7 @@ class GlobalTempLayer(WeatherLayer):
         self._startup_weather_ready = True  # city weather is fetched for the visible cities
         self._marker_states: tuple[str, ...] = ()  # states whose municipalities the view labels
         self._states_key = None
+        self._offline_tried = None
 
     def handle_key(self, key: int) -> bool:  # the core's C and E keys are not ours
         if 0 <= key < 256 and chr(key).lower() == self.toggle_key:
@@ -297,54 +299,89 @@ class GlobalTempLayer(WeatherLayer):
     # -- one label per municipality from MARKER_MIN_ZOOM on (see municipalities.py) ------
     def city_places(self, view: View):
         """The municipalities of the states in view from MARKER_MIN_ZOOM on (the
-        core's Natural Earth cities below it, or while the municipality files and
-        names load)."""
+        core's Natural Earth cities below it, and for the states whose
+        municipalities are not ready yet)."""
         if view.zoom < municipalities.MARKER_MIN_ZOOM:
             self._marker_states, self._states_key = (), None
             yield from super().city_places(view)
             return
         key = view_key(view)
         if key != self._states_key:  # the state boxes are read once per view, not per redraw
-            self._states_key, self._marker_states = key, ibge.states_in_view(view)
+            states = ibge.states_in_view(view)
+            # Before the state boxes are cached no state is known: ask again next redraw.
+            self._states_key = key if ibge.state_boxes() else None
+            self._marker_states = states
         names = municipalities.names()
-        ready = [(state, municipalities.ready_places(state)) for state in self._marker_states]
-        ready = [(state, places) for state, places in ready if places is not None]
-        if not names or not ready:
+        ready = [municipalities.ready_places(state) for state in self._marker_states]
+        if names:
+            west, north = view.origin_lon, view.origin_lat
+            east, south = west + view.lon_span, north - view.lat_span
+            merged = sorted(
+                (place for places in ready if places is not None for place in places
+                 if west <= place[0] <= east and south <= place[1] <= north),
+                key=municipalities.rank,
+            )
+            for lon, lat, code, population, capital, _area in merged:
+                name, uf = names.get(code, ("", ""))
+                if name:
+                    yield (lon, lat, name, capital, population, f"{BRAZIL_COUNTRY} · {uf}")
+        if not names or any(places is None for places in ready) or not ready:
+            # Some state is not ready (or none is known): its Natural Earth cities stay.
+            # A city that a municipality label already covers is dropped by the core's
+            # same-name rule or by the overlap rule.
             yield from super().city_places(view)
-            return
-        west, north = view.origin_lon, view.origin_lat
-        east, south = west + view.lon_span, north - view.lat_span
-        # Best first across the states in view: the rank of build_places, merged.
-        merged = sorted(
-            ((index, place) for _state, places in ready for index, place in enumerate(places)
-             if west <= place[0] <= east and south <= place[1] <= north),
-            key=lambda pair: (pair[1][3] is None, -(pair[1][3] or 0), pair[0]),
-        )
-        for _index, (lon, lat, code, population, capital) in merged:
-            name, uf = names.get(code, ("", ""))
-            if name:
-                yield (lon, lat, name, capital, population, f"{BRAZIL_COUNTRY} · {uf}")
+
+    def _city_count(self) -> int:
+        return len(self._capitals) + len(self._cities)
 
     def is_due(self) -> bool:
         if not self.show_cities or not self._marker_states:
             return False
         if not municipalities.names():
             return True
-        return any(not municipalities.is_ready(state) for state in self._marker_states)
+        count = self._city_count()
+        return any(not municipalities.is_ready(state, count) for state in self._marker_states)
+
+    def tick(self) -> None:
+        super().tick()
+        # Offline the core never starts a refresh; the files already in the cache are
+        # still read, once per set of states (a missing file stays missing).
+        if self.enabled and not config.FETCH_NEW_DATA_FROM_API and self.show_cities:
+            wanted = (self._marker_states, self._city_count())
+            if self._marker_states and wanted != self._offline_tried and self.is_due():
+                self._offline_tried = wanted
+                self.refresh_async()
 
     def refresh_if_due(self, force: bool = False) -> bool:
-        """Download and read what the municipality labels of the view need (refresh thread)."""
-        if not self.enabled or not self.show_cities or not config.FETCH_NEW_DATA_FROM_API:
+        """Download (online) and read what the municipality labels of the view need.
+        Runs on the refresh thread. One failing piece does not stop the others; the
+        first failure is raised at the end, so the core backs off and retries."""
+        if not self.enabled or not self.show_cities:
             return False
         states = self._marker_states
         if not states:
             return False
-        ibge.ensure_municipality_names()
+        online = config.FETCH_NEW_DATA_FROM_API
+        failures: list[Exception] = []
+        if online:
+            try:
+                ibge.ensure_municipality_names()
+            except SourceError as error:
+                failures.append(error)  # an old list in the cache is still read below
+        municipalities.load_names()
         cities = [*self._capitals, *self._cities]
+        changed = False
         for state in states:
-            if not municipalities.is_ready(state):
-                municipalities.prepare_state(state, cities)
-        return True
+            if municipalities.is_ready(state, len(cities)):
+                continue
+            try:
+                changed |= municipalities.prepare_state(state, cities, download=online)
+            except (SourceError, OSError, ValueError) as error:
+                failures.append(error)
+        if failures:
+            self.dirty = True
+            raise failures[0]
+        return changed or bool(municipalities.names())
 
     def reload(self) -> None:
         self.dirty = True
