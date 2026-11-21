@@ -35,7 +35,7 @@ When a release with plugin support is out, this line changes to that release.
 | `br_gauges` | G | SP Águas, rain gauges | 10 min | rain in the last hour, city from the IBGE code |
 | `br_radar` | T | IAG-USP Chuva Online, 36 km radar | 10 min | hidden when the newest frame is over 30 min old |
 | `br_global_rain` | J | RainViewer radar (the core's frame and palette), inside the Brazil outline | 5 min check, a new frame about every 10 min | dBZ; drawn under `br_radar`; nothing is drawn until the IBGE state map is in the cache |
-| `br_global_temp` | M | Open-Meteo city temperatures (the core's city layer), cities of Brazil only | 15 min per city | relative colours, as on the WEATHER tab; labels replace the basemap city names in this tab |
+| `br_global_temp` | M | city temperatures (the core's city layer, with the providers below), cities of Brazil only | 15 min per city | relative colours, as on the WEATHER tab; labels replace the basemap city names in this tab; from zoom 32 on, one label per municipality (see below) |
 | `br_inmet_alerts` | V | INMET, active weather warnings | 30 min | warnings of today and the next days, as areas; hidden when the data is over 1 h old |
 
 The municipality names used by the gauges come from the IBGE localities list (kept 30 days).
@@ -108,6 +108,20 @@ CGE and INMET forecasts have no hourly values, so the hourly chart, rain and win
 The municipality of a city is found in the IBGE outlines: the state in the national state file, then the
 municipality in that state's own `minima` file (`mun-<state>-minima.geojson`, downloaded the first time, kept for 30
 days). The CPTEC id of a municipality is looked up by name once and kept in `cptec/cptec_ids.json`.
+
+### One label per municipality
+
+Below zoom 32 the temperature layer labels the Natural Earth cities, as the core does (5 of them in the São Paulo
+metropolitan area). From zoom 32 on (where the outlines switch to one file per state), it labels the municipalities
+of the states in view instead: one point inside each municipality's outline, from the same `minima` file the providers
+read, so a click asks the providers for that very municipality. The names come from the IBGE localities list.
+
+Where labels would overlap, the core's rule keeps the first: municipalities with a Natural Earth city come first, by
+that city's population, then the others by area. Only the labelled municipalities (at most the core's
+`layers.weather.cities.max_labels`) are fetched, at most `max_concurrent_requests` at a time, and each source host is
+asked at most once a second. The state files are read on the layer's refresh thread; until they are ready, the
+Natural Earth cities stay. This needs a Terrascope core with `WeatherLayer.city_places`; an older core keeps the
+Natural Earth cities at every zoom.
 
 ## Home view and zoom
 
