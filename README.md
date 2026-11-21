@@ -109,7 +109,7 @@ the core labels with its weather, on any tab:
 | Where | Current conditions | Forecast |
 |---|---|---|
 | municipality of São Paulo | CGE (city hall's weather centre), station at the Sé | CGE extended forecast: today and two days, with night, morning, afternoon and evening |
-| any other municipality of Brazil | Open-Meteo (no federal source gives them without a key) | INMET by IBGE code (5 days); CPTEC/INPE (7 days) when INMET fails |
+| any other municipality of Brazil | the nearest INMET automatic station, within 50 km and at most 3 h old (see below); else Open-Meteo | INMET by IBGE code (5 days); CPTEC/INPE (7 days) when INMET fails |
 | outside Brazil | Open-Meteo | Open-Meteo |
 
 The info box shows SOURCE (for example `Open-Meteo · forecast INMET`), and the forecast title ends with the provider
@@ -122,6 +122,46 @@ icon. INMET also gives the sunrise and sunset. The rain and wind rows show no da
 The municipality of a city is found in the IBGE outlines: the state in the national state file, then the
 municipality in that state's own `minima` file (`mun-<state>-minima.geojson`, downloaded the first time, kept for 30
 days). The CPTEC id of a municipality is looked up by name once and kept in `cptec/cptec_ids.json`.
+
+### INMET stations and the station key (token)
+
+The current conditions of a municipality outside the capital come from the nearest INMET automatic station: its
+temperature, wind and the time of the reading (hourly, in UTC at INMET, shown in São Paulo time). Stations have no
+sky reading, so the conditions words come from the running part of today's INMET forecast. The info box names the
+station, for example `INMET A701 · forecast INMET`.
+
+- **Without a key** (the default), the reading comes from INMET's forecast service, which answers with the nearest
+  station of an IBGE municipality and its latest reading (`apiprevmet3.inmet.gov.br/estacao/proxima/<code>`).
+- **With a key**, it comes from INMET's station API (`apitempo.inmet.gov.br/token/estacao/...`), from the automatic
+  station nearest to the place itself (INMET's station list, kept a day).
+- A station more than 50 km away or a reading more than 3 h old is not used: the core's next provider (Open-Meteo)
+  answers for the current conditions, with no error on screen.
+- A key INMET refuses (HTTP 401 or 403, or the text `CHAVE INVÁLIDA!`, which INMET sends with HTTP 200) is not sent
+  again in that run (after an HTTP 401 or 403, which a firewall may send too, it is tried again after 30 minutes); the
+  keyless answer stands in. The keyless answer also stands in when the keyed one fails or has no recent reading close
+  enough. A city refreshes its weather every 15 minutes: without a key that is one request per municipality; with a
+  key the towns that share a station share its answer for 10 minutes.
+- The time shown is the place's own (by state: Acre, Amazonas, Rondônia, Roraima, Mato Grosso and Mato Grosso do Sul
+  are behind São Paulo), and the conditions words come from the part of today's forecast running there; INMET has no
+  overnight part, so from midnight to 6 h a station reading has no words.
+
+How to get a key. INMET publishes no sign-up page; the API manual's address
+(`portal.inmet.gov.br/manual/manual-de-uso-da-api-estações`) answered HTTP 404 on 2026-11-21. The channel used by
+other projects is an e-mail to INMET's registration desk:
+
+1. Write to `cadastro.act@inmet.gov.br` (the address comes from third-party projects, not from an INMET page; ask
+   INMET to confirm the channel in its answer). Say who you are (name, and institution if any), that you want a key
+   (token) for the station data API `apitempo.inmet.gov.br`, what for (for example: a free, non-commercial terminal app
+   showing the latest reading of the nearest automatic station), and how often it asks (one request per station every
+   10 minutes or so). An institutional address is recommended by other projects.
+2. Wait for the answer. INMET publishes no deadline and no request limit; third parties report that a request may
+   cover at most 6 months of data.
+3. Put the key in one of these places (the environment variable wins):
+   - PowerShell, for the current window: `$env:TERRASCOPE_BR_INMET_TOKEN = "your key"`; for every new window:
+     `[Environment]::SetEnvironmentVariable("TERRASCOPE_BR_INMET_TOKEN", "your key", "User")`;
+   - or the file `br\inmet_token.txt` in the Terrascope config folder (`terrascope --show-paths` shows the folder):
+     the first line that is not blank or a `#` comment is the key.
+4. Check it: `python -m terrascope_br inmet-token` says where the key comes from and whether INMET accepts it.
 
 ### One label per municipality
 

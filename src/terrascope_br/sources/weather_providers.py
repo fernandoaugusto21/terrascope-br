@@ -6,11 +6,23 @@
   from its extended forecast (today and the next two days, with the conditions
   of the night, morning, afternoon and evening). The CGE publishes HTML pages
   only, no API: they are read by their CSS classes.
-* FederalForecastProvider, for every other municipality of Brazil (and for São
-  Paulo when the CGE fails): the forecast of INMET by IBGE code (5 days), or of
-  CPTEC/INPE (7 days) when INMET fails. Neither has current conditions without
-  a key (the CPTEC airport readings answer "undefined"), so the core's next
-  provider, Open-Meteo, gives those; the info box says so.
+* FederalProvider, for every other municipality of Brazil (and for São Paulo
+  when the CGE fails): the forecast of INMET by IBGE code (5 days), or of
+  CPTEC/INPE (7 days) when INMET fails; and the current conditions of the
+  nearest INMET automatic station (see "INMET stations" below). When no station
+  reading is close and recent enough, the core's next provider, Open-Meteo,
+  gives the current conditions; the info box says which source answered.
+
+INMET stations. With a personal key (token) of the INMET station API, set in
+the environment variable TERRASCOPE_BR_INMET_TOKEN or in the file
+<Terrascope config folder>/br/inmet_token.txt, the reading comes from the
+station API (apitempo.inmet.gov.br): the automatic station nearest to the place,
+from the station list. Without a key, or when INMET refuses it (HTTP 401/403, or
+"CHAVE INVÁLIDA" with HTTP 200), the reading comes from the forecast service's
+"nearest station" answer (apiprevmet3, by IBGE code), which needs no key. A
+reading is used only from a station within STATION_MAX_KM of the place and at
+most STATION_MAX_AGE old; otherwise the current conditions are left to the next
+provider. A refused key is not sent again until the key changes.
 
 The municipality of a place is found in the IBGE outlines: the state from the
 national state file (about 100 kB, the one the br_ufs layer keeps), then the
@@ -26,12 +38,16 @@ import re
 import threading
 import time
 import unicodedata
-from datetime import datetime
+import math
+import os
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 import numpy as np
 
+from terrascope.core import config
 from terrascope.layers.weather.city_weather import WeatherFetchError
 from terrascope.layers.weather.providers import WeatherProvider, WeatherReading
 
@@ -51,6 +67,17 @@ INMET_URL = "https://apiprevmet3.inmet.gov.br/previsao/{code}"
 CPTEC_CITIES_URL = "https://servicos.cptec.inpe.br/XML/listaCidades?city={name}"
 CPTEC_FORECAST_URL = "https://servicos.cptec.inpe.br/XML/cidade/7dias/{city}/previsao.xml"
 CPTEC_IDS_FILE = "cptec_ids.json"
+STATIONS_URL = "https://apitempo.inmet.gov.br/estacoes/T"          # automatic stations, no key
+STATION_URL = "https://apitempo.inmet.gov.br/token/estacao/{start}/{end}/{station}/{token}"
+NEAREST_STATION_URL = "https://apiprevmet3.inmet.gov.br/estacao/proxima/{code}"   # no key
+TOKEN_ENV = "TERRASCOPE_BR_INMET_TOKEN"
+TOKEN_FILE = ("br", "inmet_token.txt")   # under the Terrascope config folder
+STATIONS_FILE = "inmet_estacoes.json"
+STATIONS_SECONDS = 24 * 3600              # the station list is read again after a day
+STATION_SECONDS = 10 * 60                 # a station answer is reused this long (several towns share one)
+STATION_MAX_KM = 50.0                     # a station farther than this does not stand for the place
+STATION_MAX_AGE = 3 * 3600                # an older reading is not "current"
+INVALID_KEY_TEXT = "CHAVE INV"            # INMET's "CHAVE INVÁLIDA!" (sent with HTTP 200)
 SAO_PAULO_TIME = ZoneInfo("America/Sao_Paulo")   # the CGE's periods and clock
 BRAZIL_BOX = (-74.5, -34.5, -28.5, 5.6)           # west, south, east, north (with the islands)
 # The coarsest IBGE outlines cut corners: a city on the coast or on an island (Santos,
@@ -265,15 +292,18 @@ def municipality_at(latitude: float, longitude: float) -> str | None:
 
 # ---- CGE (municipality of São Paulo) ---------------------------------------------
 
-_pages: dict[str, tuple[float, str]] = {}
+_pages: dict[str, tuple[float, bytes]] = {}   # url -> (when, body): answers reused for a while
 
-def _page(url: str, keep: float) -> str:
+def _page_bytes(url: str, keep: float) -> bytes:
     hit = _pages.get(url)
     if hit is not None and time.monotonic() - hit[0] < keep:
         return hit[1]
-    text = _text(_fetch(url))
-    _pages[url] = (time.monotonic(), text)
-    return text
+    body = _fetch(url)
+    _pages[url] = (time.monotonic(), body)
+    return body
+
+def _page(url: str, keep: float) -> str:
+    return _text(_page_bytes(url, keep))
 
 def _strip(fragment: str) -> str:
     return " ".join(html.unescape(re.sub(r"<[^>]+>", " ", fragment)).split())
@@ -487,9 +517,273 @@ def _cptec_city(code: str) -> str:
         raise WeatherFetchError(f"CPTEC does not list {name}/{uf}")
     return city
 
-class FederalForecastProvider(WeatherProvider):
-    """Every municipality of Brazil: INMET, or CPTEC/INPE when INMET fails.
-    Forecast only."""
+# ---- INMET automatic stations (current conditions) --------------------------------
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+class KeyRefused(Exception):
+    """INMET refused the station API key (HTTP 401/403 or "CHAVE INVÁLIDA").
+    `lasting` is True for the explicit text refusal."""
+
+    def __init__(self, message: str, lasting: bool) -> None:
+        super().__init__(message)
+        self.lasting = lasting
+
+
+def token_file() -> Path | None:
+    """<Terrascope config folder>/br/inmet_token.txt, or None with a core that does not say its folder."""
+    folder = getattr(config, "USER_CONFIG_DIR", None)
+    return Path(folder, *TOKEN_FILE) if folder is not None else None
+
+
+def inmet_token() -> str:
+    """The station API key: TERRASCOPE_BR_INMET_TOKEN, else the first line of
+    token_file() that is not blank or a # comment; "" when neither is set."""
+    token = os.environ.get(TOKEN_ENV, "").strip()
+    if token:
+        return token
+    file = token_file()
+    if file is None:
+        return ""
+    try:
+        raw = file.read_bytes()
+    except OSError:
+        return ""
+    # Windows editors and PowerShell may write a BOM, or UTF-16 (Out-File's default).
+    encoding = "utf-16" if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else "utf-8-sig"
+    try:
+        text = raw.decode(encoding)
+    except UnicodeDecodeError:
+        return ""
+    return next((line.strip() for line in text.splitlines()
+                 if line.strip() and not line.strip().startswith("#")), "")
+
+
+# Keys INMET refused -> monotonic time until which they are not sent again. "CHAVE
+# INVÁLIDA" holds for the run; an HTTP 401/403 (which a firewall or a rate limit
+# may send too) only for REFUSED_HTTP_SECONDS.
+_refused: dict[str, float] = {}
+REFUSED_HTTP_SECONDS = 30 * 60
+
+
+def distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance."""
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp, dl = p2 - p1, math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 6371.0 * 2 * math.asin(min(1.0, math.sqrt(a)))
+
+
+# Time zone by IBGE state code (the first two digits of a municipality code); the
+# rest of Brazil, and an unknown code, is on São Paulo time. Fernando de Noronha
+# has its own.
+STATE_ZONES = {"11": "America/Porto_Velho", "12": "America/Rio_Branco", "13": "America/Manaus",
+               "14": "America/Boa_Vista", "50": "America/Campo_Grande", "51": "America/Cuiaba"}
+NORONHA = "2605459"
+
+
+def local_zone(code: str | None) -> ZoneInfo:
+    """The time zone of an IBGE municipality."""
+    code = str(code or "")
+    if code == NORONHA:
+        return ZoneInfo("America/Noronha")
+    return ZoneInfo(STATE_ZONES.get(code[:2], "America/Sao_Paulo"))
+
+
+def parse_station_reading(record: dict, now: datetime, zone: ZoneInfo = SAO_PAULO_TIME) -> dict | None:
+    """The core's current conditions from one INMET station record (keys as the
+    APIs send them: TEM_INS, VEN_VEL in m/s, VEN_DIR, DT_MEDICAO, HR_MEDICAO in
+    UTC "HHMM"), or None without a temperature or when the reading is older than
+    STATION_MAX_AGE (or in the future). The time is given in `zone` (the place's)."""
+    temperature = _number(record.get("TEM_INS"))
+    if temperature is None:
+        return None
+    try:
+        hour = str(record.get("HR_MEDICAO") or "").strip().zfill(4)
+        observed = datetime.strptime(f"{record.get('DT_MEDICAO')} {hour}", "%Y-%m-%d %H%M").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+    age = (now - observed).total_seconds()
+    if not -600 <= age <= STATION_MAX_AGE:
+        return None
+    wind = _number(record.get("VEN_VEL"))
+    return {
+        "temperature": temperature,
+        "windspeed": round(wind * 3.6, 1) if wind is not None else None,
+        "winddirection": _number(record.get("VEN_DIR")),
+        "weathercode": None, "summary": None,
+        "time": observed.astimezone(zone).strftime("%Y-%m-%dT%H:%M"),
+    }
+
+
+def _stations() -> list[dict]:
+    """The automatic stations (code, latitude, longitude, name), from a copy kept a
+    day and parsed once per copy. Only a usable list is kept; a damaged copy is
+    removed and downloaded again."""
+    file = store.path("inmet", STATIONS_FILE)
+    age = store.age(file)
+    if age is not None and age < STATIONS_SECONDS:
+        try:
+            return ibge._cached(file, _parse_stations, tag="#stations")
+        except (OSError, WeatherFetchError):
+            file.unlink(missing_ok=True)
+    body = _fetch(STATIONS_URL)
+    stations = _parse_stations(body)   # raises before anything is kept
+    try:
+        store.write_bytes(file, body)
+    except OSError:
+        pass
+    return stations
+
+
+def _parse_stations(body: bytes) -> list[dict]:
+    """Raises WeatherFetchError when the answer is not a list with stations."""
+    try:
+        items = json.loads(_text(body))
+    except ValueError as error:
+        raise WeatherFetchError(f"INMET station list unreadable: {error}") from error
+    if not isinstance(items, list):
+        raise WeatherFetchError("INMET station list is not a list")
+    stations = []
+    for item in items:
+        if not isinstance(item, dict) or str(item.get("CD_SITUACAO") or "Operante") != "Operante":
+            continue
+        lat, lon = _number(item.get("VL_LATITUDE")), _number(item.get("VL_LONGITUDE"))
+        code = str(item.get("CD_ESTACAO") or "").strip()
+        if code and lat is not None and lon is not None:
+            stations.append({"code": code, "lat": lat, "lon": lon, "name": str(item.get("DC_NOME") or code)})
+    if not stations:
+        raise WeatherFetchError("INMET station list has no station")
+    return stations
+
+
+def nearest_station(stations: list[dict], latitude: float, longitude: float) -> tuple[dict, float] | None:
+    best = min(((distance_km(latitude, longitude, st["lat"], st["lon"]), st) for st in stations),
+               key=lambda pair: pair[0], default=None)
+    return (best[1], best[0]) if best is not None else None
+
+
+def _keyed_reading(token: str, latitude: float, longitude: float, now: datetime,
+                   zone: ZoneInfo = SAO_PAULO_TIME) -> tuple[dict, str] | None:
+    """(current conditions, station code) from the station API with a key, or None
+    when no station is close enough or it has no recent reading. Raises
+    KeyRefused, WeatherFetchError."""
+    found = nearest_station(_stations(), latitude, longitude)
+    if found is None or found[1] > STATION_MAX_KM:
+        return None
+    station = found[0]
+    day = now.astimezone(timezone.utc).date()
+    url = STATION_URL.format(start=(day - timedelta(days=1)).isoformat(), end=day.isoformat(),
+                             station=station["code"], token=quote(token, safe=""))
+    text = _ask_with_key(url)
+    if not text:
+        return None   # HTTP 204: no data for the period
+    try:
+        records = json.loads(text)
+    except ValueError as error:
+        raise WeatherFetchError(f"INMET station answer unreadable: {error}") from error
+    for record in sorted((r for r in records if isinstance(r, dict)) if isinstance(records, list) else [],
+                         key=lambda r: (str(r.get("DT_MEDICAO")), str(r.get("HR_MEDICAO")).zfill(4)), reverse=True):
+        current = parse_station_reading(record, now, zone)
+        if current is not None:
+            return current, station["code"]
+    return None
+
+
+def _ask_with_key(url: str) -> str:
+    """The station API's answer as text. Raises KeyRefused when INMET refuses the
+    key, WeatherFetchError when it does not answer."""
+    try:
+        body = _page_bytes(url, STATION_SECONDS)
+    except WeatherFetchError as error:
+        if re.search(r"HTTP 40[13]\b", str(error)):
+            raise KeyRefused(str(error), lasting=False) from error
+        raise
+    text = _text(body).strip()
+    if text.upper().startswith(INVALID_KEY_TEXT):
+        raise KeyRefused(text, lasting=True)
+    return text
+
+
+def try_key(token: str, station: str = "A701", now: datetime | None = None) -> tuple[bool, str]:
+    """(accepted, what INMET said) for one request of the station API with `token`,
+    as the provider sends it. Raises WeatherFetchError when INMET does not answer."""
+    day = (now or _now()).astimezone(timezone.utc).date()
+    url = STATION_URL.format(start=(day - timedelta(days=1)).isoformat(), end=day.isoformat(),
+                             station=station, token=quote(token, safe=""))
+    _pages.pop(url, None)   # a check asks INMET now, not the answer kept for the map
+    try:
+        text = _ask_with_key(url)
+    except KeyRefused as refusal:
+        return False, str(refusal)
+    return True, "no data for the period" if not text else f"station {station} answered"
+
+
+def _keyless_reading(code: str, latitude: float, longitude: float, now: datetime,
+                     zone: ZoneInfo = SAO_PAULO_TIME) -> tuple[dict, str] | None:
+    """(current conditions, station code) from the forecast service's nearest
+    station for an IBGE municipality (no key), or None when it is too far or old."""
+    try:
+        answer = json.loads(_text(_page_bytes(NEAREST_STATION_URL.format(code=code), STATION_SECONDS)))
+    except ValueError as error:
+        raise WeatherFetchError(f"INMET nearest station unreadable: {error}") from error
+    if not isinstance(answer, dict):
+        return None
+    station, record = answer.get("estacao") or {}, answer.get("dados") or {}
+    if not isinstance(station, dict) or not isinstance(record, dict):
+        return None
+    lat, lon = _number(station.get("LATITUDE")), _number(station.get("LONGITUDE"))
+    if lat is None or lon is None or distance_km(latitude, longitude, lat, lon) > STATION_MAX_KM:
+        return None
+    current = parse_station_reading(record, now, zone)
+    return (current, str(station.get("CODIGO") or record.get("CD_ESTACAO") or "")) if current else None
+
+
+def station_reading(code: str, latitude: float, longitude: float, now: datetime | None = None) -> tuple[dict, str] | None:
+    """The current conditions of the nearest INMET station: with the key when one
+    is set and not refused; without it when there is no key, or the keyed answer
+    is refused, fails or has no recent reading close enough. Raises
+    WeatherFetchError only when the keyless answer fails too."""
+    now = now or _now()
+    zone = local_zone(code)
+    token = inmet_token()
+    keyed_error = None
+    if token and time.monotonic() >= _refused.get(token, 0.0):
+        try:
+            found = _keyed_reading(token, latitude, longitude, now, zone)
+            if found is not None:
+                return found
+        except KeyRefused as refusal:
+            _refused[token] = math.inf if refusal.lasting else time.monotonic() + REFUSED_HTTP_SECONDS
+        except WeatherFetchError as error:
+            keyed_error = error
+    try:
+        return _keyless_reading(code, latitude, longitude, now, zone)
+    except WeatherFetchError as error:
+        if keyed_error is not None:
+            raise WeatherFetchError(f"with the key: {keyed_error}; without: {error}") from error
+        raise
+
+
+def _summary_now(forecast: list[dict], now: datetime, zone: ZoneInfo = SAO_PAULO_TIME) -> str | None:
+    """The words of the running part of today's forecast at the place's own time
+    (stations have no sky reading); None when that part is not in the forecast
+    (INMET has no overnight part, and today's night is not the small hours)."""
+    local = now.astimezone(zone)
+    today = next((day for day in forecast if day.get("date") == local.date().isoformat()), None)
+    if today is None:
+        return None
+    parts = {part.get("part"): part.get("summary") for part in today.get("periods") or [] if isinstance(part, dict)}
+    if not parts:
+        return today.get("summary")
+    return parts.get(min(3, max(0, local.hour // 6)))
+
+
+class FederalProvider(WeatherProvider):
+    """Every municipality of Brazil: the forecast of INMET, or CPTEC/INPE when INMET
+    fails; the current conditions of the nearest INMET automatic station."""
 
     name = "INMET"
     priority = 100
@@ -499,16 +793,38 @@ class FederalForecastProvider(WeatherProvider):
 
     def fetch(self, latitude: float, longitude: float) -> WeatherReading:
         code = municipality_at(latitude, longitude)
+        forecast, forecast_source, errors = [], "", []
         try:
             payload = json.loads(_text(_fetch(INMET_URL.format(code=code))))
-            return WeatherReading(forecast=parse_inmet(payload, code), forecast_source="INMET")
+            forecast, forecast_source = parse_inmet(payload, code), "INMET"
         except (WeatherFetchError, ValueError, AttributeError) as inmet_error:
             try:
                 xml = _text(_fetch(CPTEC_FORECAST_URL.format(city=_cptec_city(code))))
-                return WeatherReading(forecast=parse_cptec(xml), forecast_source="CPTEC/INPE")
+                forecast, forecast_source = parse_cptec(xml), "CPTEC/INPE"
             except (WeatherFetchError, ValueError, SourceError, OSError) as cptec_error:
-                raise WeatherFetchError(f"INMET: {inmet_error}; CPTEC: {cptec_error}") from cptec_error
+                errors.append(f"INMET: {inmet_error}; CPTEC: {cptec_error}")
+        current, current_source = None, ""
+        now = _now()
+        try:
+            found = station_reading(code, latitude, longitude, now)
+        except (WeatherFetchError, OSError) as station_error:
+            errors.append(f"station: {station_error}")
+            found = None
+        if found is not None:
+            current, station = found
+            summary = _summary_now(forecast, now, local_zone(code)) if forecast_source == "INMET" else None
+            if summary:
+                current = {**current, "summary": summary, "weathercode": wmo_code(summary)}
+            current_source = f"INMET {station}".strip()
+        if current is None and not forecast:
+            raise WeatherFetchError("; ".join(errors) or "no INMET data")
+        return WeatherReading(current=current, forecast=forecast,
+                              current_source=current_source, forecast_source=forecast_source)
+
+
+FederalForecastProvider = FederalProvider   # the name of the first version (forecast only)
+
 
 def providers() -> list[WeatherProvider]:
     """Entry point of "terrascope.weather_providers"."""
-    return [CgeProvider(), FederalForecastProvider()]
+    return [CgeProvider(), FederalProvider()]

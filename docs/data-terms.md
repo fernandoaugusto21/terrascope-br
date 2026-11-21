@@ -32,6 +32,7 @@ Certainty:
 | CGE São Paulo alert map (section 7) | `https://www.cgesp.org/v3/mapas.jsp?arq=alertas`, `https://www.cgesp.org/cgesp/mapa_sp_geoserver.png` | `sources/cge.py` |
 | GeoSampa subprefeituras (section 10) | `https://wms.geosampa.prefeitura.sp.gov.br/geoserver/geoportal/wfs?...&typeNames=geoportal:subprefeitura&outputFormat=application/json` | `sources/cge.py` |
 | INMET forecast (section 8) | `https://apiprevmet3.inmet.gov.br/previsao/{IBGE code}` | `sources/weather_providers.py` |
+| INMET stations (section 8) | `https://apiprevmet3.inmet.gov.br/estacao/proxima/{IBGE code}` (no key), `https://apitempo.inmet.gov.br/estacoes/T` (no key), `https://apitempo.inmet.gov.br/token/estacao/{start}/{end}/{station}/{key}` (with a key) | `sources/weather_providers.py` |
 | CPTEC/INPE forecast (section 9) | `https://servicos.cptec.inpe.br/XML/listaCidades?city={name}`, `https://servicos.cptec.inpe.br/XML/cidade/7dias/{id}/previsao.xml` | `sources/weather_providers.py` |
 | IBGE malhas by state | `https://servicodados.ibge.gov.br/api/v3/malhas/estados/{code}?...&qualidade={minima,intermediaria,maxima}` | `sources/ibge.py`, `sources/weather_providers.py` |
 

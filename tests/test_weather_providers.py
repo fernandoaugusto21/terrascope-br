@@ -2,7 +2,7 @@
 fallback) for the forecast elsewhere, and the IBGE lookup of the municipality."""
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -114,6 +114,11 @@ def cache(tmp_path, monkeypatch):
     ibge._parsed.clear()
     wp._found.clear()
     wp._pages.clear()
+    wp._refused.clear()
+    monkeypatch.delenv(wp.TOKEN_ENV, raising=False)
+    monkeypatch.setattr(config, "USER_CONFIG_DIR", tmp_path / "config", raising=False)
+    # The station readings of the fixtures are from 21/11/2026 19:00 UTC.
+    monkeypatch.setattr(wp, "_now", lambda: datetime(2026, 11, 21, 19, 40, tzinfo=timezone.utc))
     # SP state; inside it the capital (a box round the centre) and Guarulhos to the north-east.
     store.write_bytes(store.path("ibge", "ufs.geojson"), json.dumps(
         {"features": [_square("35", -53.0, -25.5, -44.0, -19.5)]}).encode())
@@ -189,7 +194,7 @@ def test_inmet_for_other_municipalities_and_cptec_when_inmet_fails(cache, monkey
     federal = wp.FederalForecastProvider()
     reading = federal.fetch(*GUARULHOS)
     assert reading.forecast_source == "INMET" and reading.current is None and len(reading.forecast) == 5
-    assert asked[-1].endswith("/previsao/3518800")
+    assert any(url.endswith("/previsao/3518800") for url in asked)
 
     store.write_bytes(store.path("ibge", ibge.NAMES_FILE),
                       json.dumps([{"municipio-id": 3518800, "municipio-nome": "Guarulhos", "UF-sigla": "SP"}]).encode())
@@ -297,3 +302,160 @@ def test_an_unwritable_id_file_does_not_lose_the_cptec_forecast(cache, monkeypat
     monkeypatch.setattr(store, "write_bytes", lambda file, data: (_ for _ in ()).throw(PermissionError("locked"))
                         if file.name == wp.CPTEC_IDS_FILE else real_write(file, data))
     assert wp.FederalForecastProvider().fetch(*GUARULHOS).forecast_source == "CPTEC/INPE"
+
+
+# ---- INMET stations: current conditions, with and without a key -------------------
+
+FORECAST = (DATA / "inmet_previsao_3518800.json").read_bytes()
+NEAREST = (DATA / "inmet_proxima_3518800.json").read_bytes()
+STATIONS = (DATA / "inmet_estacoes_T.json").read_bytes()
+A701_HOURS = json.dumps([
+    {"CD_ESTACAO": "A701", "DT_MEDICAO": "2026-11-21", "HR_MEDICAO": "1800", "TEM_INS": "28.4",
+     "VEN_VEL": "2.0", "VEN_DIR": "300"},
+    {"CD_ESTACAO": "A701", "DT_MEDICAO": "2026-11-21", "HR_MEDICAO": "1900", "TEM_INS": "29.6",
+     "VEN_VEL": "2.5", "VEN_DIR": "310"},
+    {"CD_ESTACAO": "A701", "DT_MEDICAO": "2026-11-21", "HR_MEDICAO": "2000", "TEM_INS": None},
+]).encode()
+
+
+def test_without_a_key_the_nearest_station_answer_gives_the_current_conditions(cache, monkeypatch):
+    asked = _serve(monkeypatch, {"/previsao/": FORECAST, "/estacao/proxima/3518800": NEAREST})
+    reading = wp.FederalProvider().fetch(*GUARULHOS)
+    assert reading.current_source == "INMET A701" and reading.forecast_source == "INMET"
+    now = reading.current
+    assert now["temperature"] == 29.1 and now["windspeed"] == pytest.approx(11.2) and now["winddirection"] == 297
+    assert now["time"] == "2026-11-21T16:00"                    # 19:00 UTC in São Paulo time
+    assert now["summary"] and now["weathercode"] is not None    # the afternoon part of today's forecast
+    assert not any("apitempo" in url for url in asked)
+
+
+def test_with_a_key_the_station_api_answers_for_the_nearest_station(cache, monkeypatch):
+    monkeypatch.setenv(wp.TOKEN_ENV, "MY-KEY")
+    asked = _serve(monkeypatch, {"/previsao/": FORECAST, "/estacoes/T": STATIONS,
+                                 "/token/estacao/2026-11-20/2026-11-21/A701/MY-KEY": A701_HOURS})
+    reading = wp.FederalProvider().fetch(*GUARULHOS)
+    assert reading.current_source == "INMET A701"
+    assert reading.current["temperature"] == 29.6 and reading.current["time"] == "2026-11-21T16:00"  # the newest with a value
+    assert not any("/estacao/proxima/" in url for url in asked)
+
+
+@pytest.mark.parametrize("refusal", [b"CHAVE INV\xc3\x81LIDA!", SourceError("HTTP 401"), SourceError("HTTP 403")])
+def test_a_refused_key_falls_back_to_the_keyless_answer_and_is_not_sent_again(cache, monkeypatch, refusal):
+    monkeypatch.setenv(wp.TOKEN_ENV, "OLD-KEY")
+    asked = _serve(monkeypatch, {"/previsao/": FORECAST, "/estacoes/T": STATIONS,
+                                 "/token/estacao/": refusal, "/estacao/proxima/3518800": NEAREST})
+    reading = wp.FederalProvider().fetch(*GUARULHOS)
+    assert reading.current_source == "INMET A701" and reading.current["temperature"] == 29.1   # keyless
+    wp._pages.clear()
+    wp.FederalProvider().fetch(*GUARULHOS)
+    assert sum("/token/estacao/" in url for url in asked) == 1
+
+
+class _OpenMeteo(OpenMeteoProvider):
+    def fetch(self, latitude, longitude):
+        return WeatherReading(current={"temperature": 25.0, "time": "2026-11-21T16:00"},
+                              forecast=[{"date": "2026-11-21"}], current_source="Open-Meteo",
+                              forecast_source="Open-Meteo")
+
+
+@pytest.mark.parametrize("key", ["", "BAD-KEY"])
+def test_no_station_reading_leaves_the_current_conditions_to_open_meteo_without_error(cache, monkeypatch, key):
+    """No key, or a refused key, and the keyless answer is down too: the chain
+    takes the current conditions from Open-Meteo, keeps the INMET forecast, and
+    nothing on screen says the station failed except the provider's errors."""
+    if key:
+        monkeypatch.setenv(wp.TOKEN_ENV, key)
+    _serve(monkeypatch, {"/previsao/": FORECAST, "/estacoes/T": STATIONS,
+                         "/token/estacao/": b"CHAVE INV\xc3\x81LIDA!", "/estacao/proxima/": SourceError("HTTP 503")})
+    reading = fetch_reading(*GUARULHOS, chain=[wp.FederalProvider(), _OpenMeteo()])
+    assert reading.current_source == "Open-Meteo" and reading.current["temperature"] == 25.0
+    assert reading.forecast_source == "INMET"
+
+
+def test_a_far_or_old_station_reading_is_not_current(cache, monkeypatch):
+    far = json.loads(NEAREST)
+    far["estacao"]["LATITUDE"], far["estacao"]["LONGITUDE"] = "-22.0", "-47.9"   # about 170 km away
+    _serve(monkeypatch, {"/previsao/": FORECAST, "/estacao/proxima/3518800": json.dumps(far).encode()})
+    assert wp.FederalProvider().fetch(*GUARULHOS).current is None
+    record = json.loads(NEAREST)["dados"]
+    assert wp.parse_station_reading(record, datetime(2026, 11, 21, 23, 1, tzinfo=timezone.utc)) is None   # 4 h old
+    assert wp.parse_station_reading({**record, "TEM_INS": None}, datetime(2026, 11, 21, 19, 30, tzinfo=timezone.utc)) is None
+
+
+def test_the_key_can_live_in_the_config_folder(cache):
+    assert wp.inmet_token() == ""
+    folder = config.USER_CONFIG_DIR / "br"
+    folder.mkdir(parents=True)
+    (folder / "inmet_token.txt").write_text("# my INMET key\n  FILE-KEY  \n", encoding="utf-8")
+    assert wp.inmet_token() == "FILE-KEY"
+
+
+def test_the_key_check_command_says_where_the_key_is_and_what_inmet_says(cache, monkeypatch, capsys):
+    from terrascope_br import __main__ as command
+
+    assert command.main(["inmet-token"]) == 1 and "no INMET station key" in capsys.readouterr().out
+    monkeypatch.setenv(wp.TOKEN_ENV, "BAD")
+    _serve(monkeypatch, {"/token/estacao/": b"CHAVE INV\xc3\x81LIDA!"})
+    assert command.main(["inmet-token"]) == 1 and "refused" in capsys.readouterr().out
+    _serve(monkeypatch, {"/token/estacao/": A701_HOURS})
+    assert command.main(["inmet-token"]) == 0 and "accepted" in capsys.readouterr().out
+    _serve(monkeypatch, {"/token/estacao/": SourceError("HTTP 403")})
+    assert command.main(["inmet-token"]) == 1 and "refused" in capsys.readouterr().out
+
+
+def test_a_failing_or_empty_keyed_answer_falls_back_to_the_keyless_one(cache, monkeypatch):
+    monkeypatch.setenv(wp.TOKEN_ENV, "GOOD-KEY")
+    for keyed in (SourceError("HTTP 503"), b"", json.dumps([]).encode()):
+        wp._pages.clear()
+        _serve(monkeypatch, {"/previsao/": FORECAST, "/estacoes/T": STATIONS,
+                             "/token/estacao/": keyed, "/estacao/proxima/3518800": NEAREST})
+        reading = wp.FederalProvider().fetch(*GUARULHOS)
+        assert reading.current_source == "INMET A701" and reading.current["temperature"] == 29.1
+    assert not wp._refused   # a failure is not a refusal
+
+
+def test_an_http_refusal_is_retried_later_a_text_refusal_not_in_this_run(cache, monkeypatch):
+    monkeypatch.setenv(wp.TOKEN_ENV, "KEY")
+    _serve(monkeypatch, {"/previsao/": FORECAST, "/estacoes/T": STATIONS,
+                         "/token/estacao/": SourceError("HTTP 403"), "/estacao/proxima/3518800": NEAREST})
+    wp.FederalProvider().fetch(*GUARULHOS)
+    assert wp._refused["KEY"] != float("inf")
+    wp._refused.clear()
+    wp._pages.clear()
+    _serve(monkeypatch, {"/previsao/": FORECAST, "/estacoes/T": STATIONS,
+                         "/token/estacao/": b"CHAVE INV\xc3\x81LIDA!", "/estacao/proxima/3518800": NEAREST})
+    wp.FederalProvider().fetch(*GUARULHOS)
+    assert wp._refused["KEY"] == float("inf")
+
+
+def test_an_empty_or_odd_station_list_is_not_kept(cache, monkeypatch):
+    for odd in (b"[]", b'{"message": "erro"}'):
+        _serve(monkeypatch, {"/estacoes/T": odd})
+        with pytest.raises(WeatherFetchError):
+            wp._stations()
+        assert not store.path("inmet", wp.STATIONS_FILE).exists()
+    store.write_bytes(store.path("inmet", wp.STATIONS_FILE), b"{damaged")
+    _serve(monkeypatch, {"/estacoes/T": STATIONS})
+    assert {station["code"] for station in wp._stations()} >= {"A701"}   # the damaged copy is replaced
+
+
+@pytest.mark.parametrize("data", [
+    "\ufeffBOM-KEY\n".encode("utf-8"), "BOM-KEY\n".encode("utf-16"), b"   # a comment\nBOM-KEY\n",
+])
+def test_key_files_from_windows_editors(cache, data):
+    folder = config.USER_CONFIG_DIR / "br"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "inmet_token.txt").write_bytes(data)
+    assert wp.inmet_token() == "BOM-KEY"
+
+
+def test_the_time_and_part_of_the_day_are_the_places_own():
+    record = json.loads(NEAREST)["dados"]   # 19:00 UTC
+    assert wp.parse_station_reading(record, datetime(2026, 11, 21, 19, 30, tzinfo=timezone.utc),
+                                    wp.local_zone("1200401"))["time"] == "2026-11-21T14:00"   # Rio Branco, UTC-5
+    assert wp.local_zone("3518800").key == "America/Sao_Paulo" and wp.local_zone("2605459").key == "America/Noronha"
+    days = wp.parse_inmet(json.loads(FORECAST), "3518800")
+    small_hours = datetime(2026, 11, 21, 5, 0, tzinfo=timezone.utc)   # 02:00 in São Paulo
+    assert wp._summary_now(days, small_hours) is None
+    afternoon = datetime(2026, 11, 21, 17, 0, tzinfo=timezone.utc)    # 14:00
+    assert wp._summary_now(days, afternoon) == days[0]["periods"][1]["summary"]

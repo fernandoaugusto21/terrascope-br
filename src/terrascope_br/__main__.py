@@ -83,7 +83,39 @@ def check() -> list[str]:
     return problems
 
 
-def main() -> int:
+def check_inmet_token() -> int:
+    """`python -m terrascope_br inmet-token`: say where the INMET station key comes
+    from and whether INMET accepts it (one request to the station API)."""
+    import os
+
+    from terrascope.layers.weather.city_weather import WeatherFetchError
+
+    from terrascope_br.sources import weather_providers as wp
+
+    token = wp.inmet_token()
+    file = wp.token_file()
+    if not token:
+        place = f" or write it in {file}" if file is not None else ""
+        print(f"terrascope-br: no INMET station key: set {wp.TOKEN_ENV}{place}; "
+              "the current conditions come from the keyless nearest-station answer")
+        return 1
+    where = wp.TOKEN_ENV if os.environ.get(wp.TOKEN_ENV, "").strip() else str(file)
+    try:
+        accepted, said = wp.try_key(token)   # the same request and rules as the provider
+    except WeatherFetchError as error:
+        print(f"terrascope-br: INMET did not answer for the key from {where}: {error}")
+        return 1
+    if not accepted:
+        print(f"terrascope-br: INMET refused the key from {where}: {said}")
+        return 1
+    print(f"terrascope-br: INMET accepted the key from {where} ({said}).")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = sys.argv[1:] if argv is None else argv
+    if args[:1] == ["inmet-token"]:
+        return check_inmet_token()
     problems = check()
     if problems:
         for line in problems:
