@@ -164,7 +164,7 @@ Notes:
 Notes:
 
 - What the app shows: the provider name "CGE" in the info box and in the forecast title of the city of São Paulo, the
-  map credit "Weather of São Paulo: CGE" while that city is selected, "CGE" in the tab's credits, and "CGE (Prefeitura
+  map credit "CGE: weather of São Paulo" while that city is selected, "CGE" in the tab's credits, and "CGE (Prefeitura
   de São Paulo)" while the flood-risk regions are drawn.
 - Reading HTML and an image is fragile and not an agreed interface: a new layout shows up as "update failed", never as
   wrong data, and the next provider answers for the weather (see the README).
