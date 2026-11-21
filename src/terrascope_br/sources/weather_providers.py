@@ -36,6 +36,7 @@ from terrascope.layers.weather.city_weather import WeatherFetchError
 from terrascope.layers.weather.providers import WeatherProvider, WeatherReading
 
 from terrascope_br import store
+from terrascope_br._i18n import N_, _
 from terrascope_br.net import SourceError, get
 from terrascope_br.sources import ibge
 
@@ -277,7 +278,22 @@ def _page(url: str, keep: float) -> str:
 def _strip(fragment: str) -> str:
     return " ".join(html.unescape(re.sub(r"<[^>]+>", " ", fragment)).split())
 
-PERIODS = ("Madrug.", "Manhã", "Tarde", "Noite")
+# The parts of the day as the forecast box shows them, by part number (hour // 6).
+PART_NAMES = (N_("Overnight"), N_("Morning"), N_("Afternoon"), N_("Night"))
+INMET_PARTS = {"manha": 1, "tarde": 2, "noite": 3}
+
+def part_number(title: str) -> int | None:
+    """Part of the day of a CGE title ("Madrug.", "Madrugada", "Manha"...), by its
+    start, without accents; None when it is none of the four."""
+    plain = _plain(title)
+    for number, start in enumerate(("madrug", "manha", "tarde", "noite")):
+        if plain.startswith(start):
+            return number
+    return None
+
+def period(part: int, conditions: str) -> dict:
+    """One part of the day for the core's forecast box ("periods" of a day)."""
+    return {"name": _(PART_NAMES[part]), "code": wmo_code(conditions), "summary": conditions, "part": part}
 
 def parse_cge_forecast(page: str) -> list[dict]:
     """The days of the CGE extended forecast, as the core's forecast days, each
@@ -289,12 +305,15 @@ def parse_cge_forecast(page: str) -> list[dict]:
         if not found:
             continue
         day, month, year = (int(group) for group in found.groups())
-        periods = [
+        found_parts = [
             (_strip(name), _strip(conditions))
             for name, conditions in re.findall(
                 r'<div class="cond-tempo">\s*<h1>(.*?)</h1>\s*<h2>(.*?)</h2>', block, flags=re.S)
         ]
-        code, summary = _worst([conditions for _name, conditions in periods])
+        # A part whose title is not known is not drawn, but its conditions still count.
+        periods = [period(part, conditions) for name, conditions in found_parts
+                   if (part := part_number(name)) is not None]
+        code, summary = _worst([conditions for _name, conditions in found_parts])
         low = re.search(r'class="temp-min">([^<]*)<', block)
         high = re.search(r'class="temp-max">([^<]*)<', block)
         days.append({
@@ -329,9 +348,6 @@ def _station_temperature(page: str) -> float | None:
         r'<strong>Atual:</strong></td>\s*<td[^>]*>\s*<span class="tempmedio">([^<]*)<', page)
     return _number(values[0]) if len(values) == 1 else None
 
-def period_now(hour: int) -> str:
-    return PERIODS[min(3, max(0, hour // 6))]
-
 def parse_cge_station(page: str, forecast: list[dict], now: datetime) -> dict:
     """Current conditions of a CGE station page, at `now` (São Paulo time). The
     conditions words come from the period of today's forecast (the station has no
@@ -342,8 +358,9 @@ def parse_cge_station(page: str, forecast: list[dict], now: datetime) -> dict:
     if temperature is None:
         raise ValueError("no current temperature on the CGE station page")
     today = next((day for day in forecast if day.get("date") == now.date().isoformat()), None)
-    periods = dict((today or {}).get("periods") or [])
-    summary = periods.get(period_now(now.hour)) or (today or {}).get("summary")
+    parts = {part.get("part"): part.get("summary") for part in (today or {}).get("periods") or []
+             if isinstance(part, dict)}
+    summary = parts.get(min(3, max(0, now.hour // 6))) or (today or {}).get("summary")
     return {
         "temperature": temperature,
         "windspeed": _number(_station_value(page, "Velocidade")),
@@ -379,6 +396,11 @@ class CgeProvider(WeatherProvider):
 
 # ---- INMET and CPTEC (federal, every municipality) --------------------------------
 
+def _clock(date: str, text) -> str | None:
+    """"05h12" on a date -> "2026-11-21T05:12" (the core shows characters 11 to 16)."""
+    found = re.fullmatch(r"\s*(\d{1,2})h(\d{2})\s*", str(text or ""))
+    return f"{date}T{int(found.group(1)):02d}:{found.group(2)}" if found else None
+
 def parse_inmet(payload: dict, code: str) -> list[dict]:
     """The days of an INMET forecast. The first days come in periods (morning,
     afternoon, night); the day takes the extremes and the worst conditions."""
@@ -388,16 +410,21 @@ def parse_inmet(payload: dict, code: str) -> list[dict]:
             date = datetime.strptime(stamp, "%d/%m/%Y").date().isoformat()
         except ValueError:
             continue
-        parts = [part for part in value.values() if isinstance(part, dict)] or [value]
+        named = {name: part for name, part in value.items() if isinstance(part, dict)}
+        parts = list(named.values()) or [value]
         highs = [_number(part.get("temp_max")) for part in parts]
         lows = [_number(part.get("temp_min")) for part in parts]
         highs, lows = [x for x in highs if x is not None], [x for x in lows if x is not None]
         code_, summary = _worst([str(part.get("resumo") or "") for part in parts])
+        periods = [period(INMET_PARTS[name], str(part.get("resumo") or "").strip())
+                   for name, part in named.items() if name in INMET_PARTS]
+        periods.sort(key=lambda part: part["part"])
         days.append({
             "date": date, "code": code_, "summary": summary,
             "tmax": max(highs) if highs else None, "tmin": min(lows) if lows else None,
             "precip": None, "pop": None, "wind": None, "gust": None,
-            "sunrise": None, "sunset": None, "uv": None, "hours": [],
+            "sunrise": _clock(date, parts[0].get("nascer")), "sunset": _clock(date, parts[0].get("ocaso")),
+            "uv": None, "hours": [], "periods": periods,
         })
     days.sort(key=lambda day: day["date"])
     if not days:

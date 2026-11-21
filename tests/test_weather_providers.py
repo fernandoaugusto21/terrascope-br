@@ -31,8 +31,19 @@ def test_cge_forecast_has_three_days_with_their_periods():
     assert [day["date"] for day in days] == ["2026-11-21", "2026-11-22", "2026-11-23"]
     today = days[0]
     assert (today["tmin"], today["tmax"]) == (21.0, 31.0)
-    assert [name for name, _ in today["periods"]] == list(wp.PERIODS)
+    assert [part["part"] for part in today["periods"]] == [0, 1, 2, 3]
+    assert [part["name"] for part in today["periods"]] == ["Overnight", "Morning", "Afternoon", "Night"]
+    assert all(part["code"] == wp.wmo_code(part["summary"]) for part in today["periods"])
     assert today["summary"] == "Pancadas isoladas" and today["code"] == 80   # the worst period
+
+
+def test_cge_parts_with_new_titles_still_count_for_the_day():
+    page = _read("cge_previsao_estendida.html").replace("<h1>Madrug.</h1>", "<h1>Madrugada</h1>")
+    page = page.replace("<h1>Tarde</h1>", "<h1>Entardecer</h1>")
+    today = wp.parse_cge_forecast(page)[0]
+    assert 0 in [part["part"] for part in today["periods"]]          # "Madrugada" is still the overnight
+    assert 2 not in [part["part"] for part in today["periods"]]      # an unknown title is not drawn...
+    assert today["code"] == 80                                       # ...but its conditions still count
 
 
 def test_cge_station_gives_the_current_conditions():
@@ -56,6 +67,16 @@ def test_inmet_days_take_the_extremes_and_the_worst_period():
     assert len(days) == 5 and days[0]["date"] == "2026-11-21"
     assert days[0]["code"] == 95 and "trovoadas" in days[0]["summary"]
     assert all(day["tmin"] <= day["tmax"] for day in days)
+
+
+def test_inmet_days_have_their_parts_and_the_sun_times():
+    days = wp.parse_inmet(json.loads(_read("inmet_previsao_3518800.json")), "3518800")
+    first = days[0]
+    assert [part["part"] for part in first["periods"]] == [1, 2, 3]   # morning, afternoon, night
+    assert first["periods"][0]["summary"] and first["periods"][0]["code"] is not None
+    assert first["sunrise"] and first["sunrise"].startswith("2026-11-21T") and len(first["sunrise"]) == 16
+    assert days[-1]["periods"] == []   # the last days come as one block, without parts
+    assert wp._clock("2026-11-21", "5h07") == "2026-11-21T05:07" and wp._clock("2026-11-21", "") is None
 
 
 def test_cptec_days_and_weather_words():

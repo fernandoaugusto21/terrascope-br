@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-21 14:00-0300\n"
+"POT-Creation-Date: 2026-11-21 17:35-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,7 +18,7 @@ msgstr ""
 "Generated-By: Babel 2.18.0\n"
 
 #: src/terrascope_br/base.py:113
-#: src/terrascope_br/sources/global_weather.py:235
+#: src/terrascope_br/sources/global_weather.py:238
 #, python-format
 msgid "unavailable: %s"
 msgstr ""
@@ -29,18 +29,18 @@ msgid "cache unreadable: %s"
 msgstr ""
 
 #: src/terrascope_br/base.py:116
-#: src/terrascope_br/sources/global_weather.py:235
+#: src/terrascope_br/sources/global_weather.py:238
 msgid "no data yet"
 msgstr ""
 
 #: src/terrascope_br/base.py:118
-#: src/terrascope_br/sources/global_weather.py:237
+#: src/terrascope_br/sources/global_weather.py:240
 #, python-format
 msgid "update failed: %s"
 msgstr ""
 
 #: src/terrascope_br/base.py:120
-#: src/terrascope_br/sources/global_weather.py:239
+#: src/terrascope_br/sources/global_weather.py:242
 #, python-format
 msgid "no update since %s"
 msgstr ""
@@ -51,14 +51,14 @@ msgid "updated %s"
 msgstr ""
 
 #: src/terrascope_br/base.py:169
-#: src/terrascope_br/sources/global_weather.py:247
-#: src/terrascope_br/sources/global_weather.py:317
+#: src/terrascope_br/sources/global_weather.py:250
+#: src/terrascope_br/sources/global_weather.py:413
 msgid "on"
 msgstr ""
 
 #: src/terrascope_br/base.py:169
-#: src/terrascope_br/sources/global_weather.py:247
-#: src/terrascope_br/sources/global_weather.py:317
+#: src/terrascope_br/sources/global_weather.py:250
+#: src/terrascope_br/sources/global_weather.py:413
 msgid "off"
 msgstr ""
 
@@ -68,10 +68,62 @@ msgid ""
 "global rain and temperature cropped to Brazil"
 msgstr ""
 
-#: src/terrascope_br/tabs.py:29
+#: src/terrascope_br/tabs.py:30
 msgid ""
-"Data: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, CGE, RainViewer, Open-"
-"Meteo"
+"Data: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, CGE, GeoSampa, "
+"RainViewer, Open-Meteo"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:65
+msgid "watch"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:66
+msgid "attention"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:67
+msgid "overflow imminent"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:68
+msgid "alert"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:198
+msgid "CGE flood risk, São Paulo city"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:199
+msgid "CGE REGION"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:305 src/terrascope_br/sources/iag.py:216
+#: src/terrascope_br/sources/iag.py:217 src/terrascope_br/sources/inmet.py:312
+#: src/terrascope_br/sources/inmet.py:314
+#: src/terrascope_br/sources/spaguas.py:131
+msgid "N/A"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:307
+msgid "REGION"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:308 src/terrascope_br/sources/ibge.py:300
+msgid "STATE"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:308
+msgid "state"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:309
+#: src/terrascope_br/sources/spaguas.py:139
+msgid "UPDATED"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:310 src/terrascope_br/sources/iag.py:219
+msgid "SOURCE"
 msgstr ""
 
 #: src/terrascope_br/sources/chuva_online.py:138
@@ -100,35 +152,35 @@ msgstr ""
 msgid "strong"
 msgstr ""
 
-#: src/terrascope_br/sources/global_weather.py:156
+#: src/terrascope_br/sources/global_weather.py:159
 msgid "RAIN"
 msgstr ""
 
-#: src/terrascope_br/sources/global_weather.py:197
+#: src/terrascope_br/sources/global_weather.py:200
 msgid "no radar frame in the catalogue"
 msgstr ""
 
-#: src/terrascope_br/sources/global_weather.py:233
+#: src/terrascope_br/sources/global_weather.py:236
 msgid "waiting for the Brazil outline (IBGE)"
 msgstr ""
 
-#: src/terrascope_br/sources/global_weather.py:245
+#: src/terrascope_br/sources/global_weather.py:248
 msgid "Global rain (RainViewer, dBZ)"
 msgstr ""
 
-#: src/terrascope_br/sources/global_weather.py:315
+#: src/terrascope_br/sources/global_weather.py:411
 msgid "City temperature, relative (Open-Meteo)"
 msgstr ""
 
-#: src/terrascope_br/sources/global_weather.py:329
+#: src/terrascope_br/sources/global_weather.py:425
 msgid "cold"
 msgstr ""
 
-#: src/terrascope_br/sources/global_weather.py:330
+#: src/terrascope_br/sources/global_weather.py:426
 msgid "hot"
 msgstr ""
 
-#: src/terrascope_br/sources/global_weather.py:331
+#: src/terrascope_br/sources/global_weather.py:427
 msgid "no data"
 msgstr ""
 
@@ -168,17 +220,6 @@ msgstr ""
 msgid "6+"
 msgstr ""
 
-#: src/terrascope_br/sources/iag.py:216 src/terrascope_br/sources/iag.py:217
-#: src/terrascope_br/sources/inmet.py:312
-#: src/terrascope_br/sources/inmet.py:314
-#: src/terrascope_br/sources/spaguas.py:131
-msgid "N/A"
-msgstr ""
-
-#: src/terrascope_br/sources/iag.py:219
-msgid "SOURCE"
-msgstr ""
-
 #: src/terrascope_br/sources/iag.py:220
 msgid "MAGNITUDE"
 msgstr ""
@@ -205,10 +246,6 @@ msgstr ""
 
 #: src/terrascope_br/sources/ibge.py:299
 msgid "IBGE states"
-msgstr ""
-
-#: src/terrascope_br/sources/ibge.py:300
-msgid "STATE"
 msgstr ""
 
 #: src/terrascope_br/sources/ibge.py:308
@@ -336,7 +373,19 @@ msgstr ""
 msgid "LAST HOUR"
 msgstr ""
 
-#: src/terrascope_br/sources/spaguas.py:139
-msgid "UPDATED"
+#: src/terrascope_br/sources/weather_providers.py:283
+msgid "Overnight"
+msgstr ""
+
+#: src/terrascope_br/sources/weather_providers.py:283
+msgid "Morning"
+msgstr ""
+
+#: src/terrascope_br/sources/weather_providers.py:283
+msgid "Afternoon"
+msgstr ""
+
+#: src/terrascope_br/sources/weather_providers.py:283
+msgid "Night"
 msgstr ""
 

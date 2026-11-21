@@ -37,6 +37,7 @@ When a release with plugin support is out, this line changes to that release.
 | `br_global_rain` | J | RainViewer radar (the core's frame and palette), inside the Brazil outline | 5 min check, a new frame about every 10 min | dBZ; drawn under `br_radar`; nothing is drawn until the IBGE state map is in the cache |
 | `br_global_temp` | M | city temperatures (the core's city layer, with the providers below), cities of Brazil only | 15 min per city | relative colours, as on the WEATHER tab; labels replace the basemap city names in this tab; from zoom 32 on, one label per municipality (see below) |
 | `br_inmet_alerts` | V | INMET, active weather warnings | 30 min | warnings of today and the next days, as areas; hidden when the data is over 1 h old |
+| `br_inundation_cge` | (legend switch) | CGE, flood-risk state of each of the 32 subprefeituras of the city of São Paulo; outlines from GeoSampa | 5 min (outlines: 30 days) | from zoom 16 on; watch / attention / overflow imminent / alert, read from the colours of the CGE alert map (see below); states hidden when over 1 h old |
 
 The municipality names used by the gauges come from the IBGE localities list (kept 30 days).
 
@@ -83,6 +84,17 @@ The INMET layer draws the area of each active warning, filled with the warning's
 severity. A warning that appears in both lists of the API (today and the next days) is drawn once. Warnings with no
 area are left out. The API gives the start and end times without a time zone; they are shown as they come.
 
+### CGE flood risk by region
+
+The CGE publishes the state of each subprefeitura of the city of São Paulo only as a picture: the page
+`mapas.jsp?arq=alertas` shows the image `/cgesp/mapa_sp_geoserver.png` (made again every few minutes) and an HTML
+image map with one circle per region, at its place on the image, with its name. The layer reads the colours inside
+each circle: grey is watch, yellow attention, orange overflow imminent, red alert (the legend of that image). The
+names of the image map are matched to the GeoSampa acronyms by a fixed table; a region the table does not know is left
+out. The time of the data is the image's `Last-Modified`. A new look of that page or image shows up as "update
+failed" in the legend, never as a wrong state. The outlines are GeoSampa's `geoportal:subprefeitura` (WFS), thinned
+to about 110 m and kept 30 days.
+
 ## Legend
 
 Each layer uses at most two legend lines: its title, then either its colour key or one message when the data needs
@@ -103,7 +115,9 @@ the core labels with its weather, on any tab:
 The info box shows SOURCE (for example `Open-Meteo · forecast INMET`), and the forecast title ends with the provider
 of the forecast. The CGE publishes HTML pages only; they are read by their CSS classes, so a change of layout there
 shows up as "UNAVAILABLE" and the next provider (INMET for the forecast, Open-Meteo for the conditions) answers. The
-CGE and INMET forecasts have no hourly values, so the hourly chart, rain and wind rows show no data for them.
+CGE and INMET forecasts have no hourly values: the forecast box shows their parts of the day instead of the hourly
+chart (CGE: overnight, morning, afternoon, night; INMET: morning, afternoon, night, for the first days), each with its
+icon. INMET also gives the sunrise and sunset. The rain and wind rows show no data for them.
 
 The municipality of a city is found in the IBGE outlines: the state in the national state file, then the
 municipality in that state's own `minima` file (`mun-<state>-minima.geojson`, downloaded the first time, kept for 30
