@@ -31,3 +31,8 @@ def _(message: str) -> str:
     if _core_i18n is None:
         return message
     return _catalog(_core_i18n.language()).gettext(message)
+
+
+def N_(message: str) -> str:
+    """Mark a text for translation where it is defined; translate it with _() where it is shown."""
+    return message
