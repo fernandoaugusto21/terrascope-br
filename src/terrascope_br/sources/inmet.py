@@ -28,6 +28,7 @@ import numpy as np
 
 from terrascope.core import config
 from terrascope.core.layer import LayerRender, Marker, SidebarLine
+from terrascope.core.ui import parse_rgba
 from terrascope.core.view import View
 
 from terrascope_br import store
@@ -43,12 +44,18 @@ COLOR_PATTERN = re.compile(r"#[0-9a-fA-F]{6}")
 TINT_ZOOM = 8.0                     # from this zoom on, the inside of an area is only tinted
 TINT_STRENGTH = 0.28                # share of the warning colour in that tint
 
-def _rgb(colour: str) -> tuple[int, int, int]:
-    return tuple(int(colour[i:i + 2], 16) for i in (1, 3, 5))
+def shown_colour(colour) -> tuple[int, int, int]:
+    """The RGB a map background colour shows on screen: any form the core accepts
+    (false / "#rgb" / "#rgba" / "#rrggbb" / "#rrggbbaa"), its alpha composited over
+    map.transparent_blend_color as the core does."""
+    red, green, blue, alpha = parse_rgba(colour)
+    blend = parse_rgba(config.CFG["map"].get("transparent_blend_color") or "#000000")[:3]
+    return tuple(round(c * alpha + b * (1 - alpha)) for c, b in zip((red, green, blue), blend))
 
-def tint(colour: str, base: str, strength: float = TINT_STRENGTH) -> str:
-    """`colour` mixed over `base` ("#rrggbb", or "#rrggbbaa": the alpha is ignored)."""
-    top, under = _rgb(colour[:7]), _rgb(base[:7])
+def tint(colour: str, base, strength: float = TINT_STRENGTH) -> str:
+    """`colour` ("#rrggbb") mixed over the shown colour of `base` (see shown_colour)."""
+    top = parse_rgba(colour)[:3]
+    under = shown_colour(base)
     mixed = (round(u + (t - u) * strength) for t, u in zip(top, under))
     return "#" + "".join(f"{value:02x}" for value in mixed)
 
@@ -169,6 +176,7 @@ def warning_cells(alerts: list[dict], view: View, land: np.ndarray | None = None
     lats = view.origin_lat - rows * view.lat_span / view.height
     grid_lon, grid_lat = np.meshgrid(lons, lats)
     cells: dict[tuple[int, int], str] = {}
+    edges: list[tuple[np.ndarray, str]] = []
     for alert in alerts:
         inside = np.zeros(grid_lon.shape, dtype=bool)
         for ring in alert["rings"]:
@@ -181,14 +189,17 @@ def warning_cells(alerts: list[dict], view: View, land: np.ndarray | None = None
             for y, x in zip(ys.tolist(), xs.tolist()):
                 cells[(x, y)] = alert["color"]
             continue
-        edge = _edges(inside)
         over_land, over_water = tint(alert["color"], land_colour), tint(alert["color"], water_colour)
         ys, xs = np.nonzero(inside)
         for y, x in zip(ys.tolist(), xs.tolist()):
-            if edge[y, x]:
-                cells[(x, y)] = alert["color"]
-            else:
-                cells[(x, y)] = over_land if land[y, x] else over_water
+            cells[(x, y)] = over_land if land[y, x] else over_water
+        edges.append((_edges(inside), alert["color"]))
+    # Every edge after every inside: a later area's tint must not hide an earlier
+    # area's outline where they overlap.
+    for edge, colour in edges:
+        ys, xs = np.nonzero(edge)
+        for y, x in zip(ys.tolist(), xs.tolist()):
+            cells[(x, y)] = colour
     return cells
 
 class InmetAlertsLayer(SourceLayer):
@@ -204,16 +215,25 @@ class InmetAlertsLayer(SourceLayer):
         super().__init__()
         self._cells_key = None
         self._cells: dict[tuple[int, int], str] = {}
-        self._land: np.ndarray | None = None   # land cells of the view being drawn
+        self._land_mask = None   # the land mask of the frame being drawn (render_with_land)
 
     def render_with_land(self, view: View, land_mask, *extra) -> LayerRender:
         # The core passes the land mask of the frame; the tint of a zoomed-in area
         # follows it (land or water colour under the warning).
-        if view.zoom >= TINT_ZOOM and land_mask is not None:
-            self._land = view.to_cell_coverage(land_mask, smooth=False) >= 0.5
-        else:
-            self._land = None
-        return self.render(view)
+        self._land_mask = land_mask
+        try:
+            return self.render(view)
+        finally:
+            self._land_mask = None
+
+    def _land_cells(self, view: View):
+        """(rows, cols) bool array of land cells, or None without a mask. Smoothed
+        like the core's land/water background, so cells cut by a country border or
+        at the coast follow the colour shown under them."""
+        mask = self._land_mask
+        if mask is None or view.zoom < TINT_ZOOM:
+            return None
+        return view.to_cell_coverage(mask) >= 0.5
 
     def stamp_file(self):
         return store.path("inmet", "avisos_ativos.json")
@@ -241,9 +261,15 @@ class InmetAlertsLayer(SourceLayer):
     def build(self, view: View) -> LayerRender:
         if not self.items or self.data_time is None or self.is_stale():
             return LayerRender(None, DEFAULT_COLOR)  # old warnings are not shown as current
-        cells_key = (view_key(view), self.data_time)
+        # The tint depends on the land under the view (the core may swap in more
+        # detailed coasts) and on the map colours, so both are part of the key.
+        mask = self._land_mask
+        mask_print = None if mask is None or view.zoom < TINT_ZOOM else hash(mask.tobytes())
+        colours = (config.CFG["map"]["land_color"], config.CFG["map"]["water_color"],
+                   config.CFG["map"].get("transparent_blend_color"))
+        cells_key = (view_key(view), self.data_time, mask_print, colours)
         if cells_key != self._cells_key:
-            self._cells = warning_cells(self.items, view, self._land)
+            self._cells = warning_cells(self.items, view, self._land_cells(view))
             self._cells_key = cells_key
         markers = []
         for alert in self.items:

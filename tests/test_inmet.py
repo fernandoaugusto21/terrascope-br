@@ -311,3 +311,38 @@ def test_the_layer_takes_the_land_from_the_frame():
     render = layer.render_with_land(view, mask)
     from terrascope.core import config
     assert set(render.bg_cells.values()) == {inmet.tint("#ffff00", config.CFG["map"]["water_color"])}
+
+
+def test_tint_accepts_every_map_colour_form_of_the_core(monkeypatch):
+    monkeypatch.setitem(config.CFG["map"], "transparent_blend_color", "#000000")
+    assert inmet.tint("#ffffff", False, 0.5) == "#808080"            # transparent: over the blend colour
+    assert inmet.tint("#000000", "#fff", 0.0) == "#ffffff"           # 3-digit form
+    assert inmet.tint("#000000", "#ffffff80", 0.0) == "#808080"      # alpha composited, not dropped
+
+
+def test_an_earlier_edge_is_not_hidden_by_a_later_area():
+    view = _zoomed()
+    lon_step, lat_step = view.lon_span / view.width, view.lat_span / view.height
+
+    def box(x0, y0, x1, y1, colour, ident):
+        w, n = view.origin_lon + x0 * lon_step, view.origin_lat - y0 * lat_step
+        e, s = view.origin_lon + x1 * lon_step, view.origin_lat - y1 * lat_step
+        return {"id": ident, "color": colour, "rings": [Ring([[w, s], [e, s], [e, n], [w, n], [w, s]])]}
+
+    small = box(6, 4, 12, 9, "#ffff00", "small")
+    big = _covering(view, "#ff8800")
+    cells = inmet.warning_cells([small, big], view)
+    assert cells[(6, 4)] == "#ffff00"            # the small area's corner stays in its colour
+
+
+def test_the_cells_follow_a_new_land_mask_for_the_same_view():
+    from PIL import Image
+    view = _zoomed()
+    layer = inmet.InmetAlertsLayer()
+    layer.items = [dict(_covering(view), lon=-46.6, lat=-23.5, event="x", severity="Perigo Potencial")]
+    layer.data_time = time.time()
+    water = Image.new("L", (view.width * 2, view.height * 4), 0)
+    land = Image.new("L", (view.width * 2, view.height * 4), 255)
+    first = set(layer.render_with_land(view, water).bg_cells.values())
+    second = set(layer.render_with_land(view, land).bg_cells.values())
+    assert first != second
