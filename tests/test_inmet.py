@@ -45,7 +45,7 @@ def _warning(ident, polygon, **extra):
 def _grid(width=10, height=10):
     """A view of lon 0..10, lat 0..10: one cell per degree."""
     return SimpleNamespace(width=width, height=height, origin_lon=0.0, origin_lat=10.0,
-                           lon_span=10.0, lat_span=10.0)
+                           lon_span=10.0, lat_span=10.0, zoom=1.0)
 
 
 def test_sample_keeps_each_warning_once():
@@ -251,3 +251,63 @@ def test_warning_texts_switch_to_portuguese(cache):
     finally:
         i18n.activate("en")
     assert layer.legend_lines()[1].text == "no active warnings"
+
+
+# ---- zoomed in: edge in full colour, the inside tinted over land or water ----
+
+def _zoomed(width=20, height=12):
+    from terrascope.core.view import View
+    return View(-46.6, -23.5, inmet.TINT_ZOOM * 2, width, height)
+
+
+def _covering(view, colour="#ffff00"):
+    """A warning much bigger than the view."""
+    w, s = view.origin_lon - 5, view.origin_lat - view.lat_span - 5
+    e, n = view.origin_lon + view.lon_span + 5, view.origin_lat + 5
+    return {"id": "big", "color": colour, "rings": [Ring([[w, s], [e, s], [e, n], [w, n], [w, s]])]}
+
+
+def test_tint_mixes_the_colour_over_the_base():
+    assert inmet.tint("#ffffff", "#000000", 0.5) == "#808080"
+    assert inmet.tint("#ff0000", "#0f0f15ff", 0.0) == "#0f0f15"   # alpha of the base ignored
+
+
+def test_an_area_covering_a_zoomed_in_view_is_only_tinted():
+    view = _zoomed()
+    land = np.zeros((view.height, view.width), dtype=bool)
+    land[:, : view.width // 2] = True
+    cells = inmet.warning_cells([_covering(view)], view, land)
+    assert len(cells) == view.width * view.height
+    colours = set(cells.values())
+    assert "#ffff00" not in colours        # no edge inside the view: nothing in full colour
+    from terrascope.core import config
+    assert cells[(0, 0)] == inmet.tint("#ffff00", config.CFG["map"]["land_color"])
+    assert cells[(view.width - 1, 0)] == inmet.tint("#ffff00", config.CFG["map"]["water_color"])
+
+
+def test_the_edge_of_an_area_keeps_the_full_colour_when_zoomed_in():
+    view = _zoomed()
+    lon_step, lat_step = view.lon_span / view.width, view.lat_span / view.height
+    w, n = view.origin_lon + 4 * lon_step, view.origin_lat - 3 * lat_step
+    e, s = view.origin_lon + 12 * lon_step, view.origin_lat - 9 * lat_step
+    alert = {"id": "box", "color": "#ff0000", "rings": [Ring([[w, s], [e, s], [e, n], [w, n], [w, s]])]}
+    cells = inmet.warning_cells([alert], view)
+    assert cells[(4, 3)] == "#ff0000" and cells[(11, 8)] == "#ff0000"     # corners: edge
+    assert cells[(8, 6)] != "#ff0000"                                     # inside: tinted
+
+
+def test_wide_views_keep_the_full_fill():
+    alert = {"id": "a", "color": "#ff0000", "rings": [Ring([[2, 2], [5, 2], [5, 5], [2, 5], [2, 2]])]}
+    assert set(inmet.warning_cells([alert], _grid()).values()) == {"#ff0000"}
+
+
+def test_the_layer_takes_the_land_from_the_frame():
+    from PIL import Image
+    view = _zoomed()
+    layer = inmet.InmetAlertsLayer()
+    layer.items = [dict(_covering(view), lon=-46.6, lat=-23.5, event="x", severity="Perigo Potencial")]
+    layer.data_time = time.time()
+    mask = Image.new("L", (view.width * 2, view.height * 4), 0)   # all water
+    render = layer.render_with_land(view, mask)
+    from terrascope.core import config
+    assert set(render.bg_cells.values()) == {inmet.tint("#ffff00", config.CFG["map"]["water_color"])}

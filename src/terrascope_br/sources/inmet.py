@@ -5,7 +5,10 @@ One request gives two lists, "hoje" (today) and "futuro" (the next days). A
 warning can be in both, so each id is kept once. Its area comes as GeoJSON text
 in lon/lat order, and each warning has its own colour (aviso_cor). The cells
 inside each area are filled with that colour; a marker at the centre of the
-area's box is the one the info box describes.
+area's box is the one the info box describes. From TINT_ZOOM on, where an area
+is usually bigger than the view, only its edge cells get the full colour; the
+cells inside get a tint of it over the land or water background, so the map
+under a warning stays readable.
 
 Warnings with no usable area are left out. Times are shown as the API gives
 them: the API does not say which time zone they are in.
@@ -23,6 +26,7 @@ from datetime import datetime
 
 import numpy as np
 
+from terrascope.core import config
 from terrascope.core.layer import LayerRender, Marker, SidebarLine
 from terrascope.core.view import View
 
@@ -36,6 +40,24 @@ ALERTS_URL = "https://apiprevmet3.inmet.gov.br/avisos/ativos"
 DEFAULT_COLOR = "#ffd60a"           # used when a warning has no usable colour
 MARKER_COLOR = "#000000"            # the mark drawn on a warning's own colour
 COLOR_PATTERN = re.compile(r"#[0-9a-fA-F]{6}")
+TINT_ZOOM = 8.0                     # from this zoom on, the inside of an area is only tinted
+TINT_STRENGTH = 0.28                # share of the warning colour in that tint
+
+def _rgb(colour: str) -> tuple[int, int, int]:
+    return tuple(int(colour[i:i + 2], 16) for i in (1, 3, 5))
+
+def tint(colour: str, base: str, strength: float = TINT_STRENGTH) -> str:
+    """`colour` mixed over `base` ("#rrggbb", or "#rrggbbaa": the alpha is ignored)."""
+    top, under = _rgb(colour[:7]), _rgb(base[:7])
+    mixed = (round(u + (t - u) * strength) for t, u in zip(top, under))
+    return "#" + "".join(f"{value:02x}" for value in mixed)
+
+def _edges(inside: np.ndarray) -> np.ndarray:
+    """Cells of `inside` with a neighbour (up, down, left, right) outside the area.
+    The border of the view does not count as outside."""
+    padded = np.pad(inside, 1, mode="edge")
+    outside_next = (~padded[:-2, 1:-1]) | (~padded[2:, 1:-1]) | (~padded[1:-1, :-2]) | (~padded[1:-1, 2:])
+    return inside & outside_next
 
 def _colour(raw) -> str:
     text = str(raw or "").strip()
@@ -126,10 +148,19 @@ def _inside_ring(lon: np.ndarray, lat: np.ndarray, points: np.ndarray) -> np.nda
         inside ^= crosses & (lon < x_at)
     return inside
 
-def warning_cells(alerts: list[dict], view: View) -> dict[tuple[int, int], str]:
+def warning_cells(alerts: list[dict], view: View, land: np.ndarray | None = None) -> dict[tuple[int, int], str]:
     """Colour of each terminal cell of `view` whose centre lies inside a warning's
     area. Rings are combined by the even-odd rule, so holes stay empty. Later
-    warnings in the list are drawn over earlier ones."""
+    warnings in the list are drawn over earlier ones. From TINT_ZOOM on, only the
+    edge cells get the full colour; the others get a tint of it over the land
+    colour where `land` (a (rows, cols) bool array) is True, and over the water
+    colour elsewhere."""
+    tinted = view.zoom >= TINT_ZOOM
+    if tinted:
+        land_colour = config.CFG["map"]["land_color"]
+        water_colour = config.CFG["map"]["water_color"]
+        if land is None or land.shape != (view.height, view.width):
+            land = np.ones((view.height, view.width), dtype=bool)
     cols = np.arange(view.width) + 0.5
     rows = np.arange(view.height) + 0.5
     lons = view.origin_lon + cols * view.lon_span / view.width
@@ -145,9 +176,19 @@ def warning_cells(alerts: list[dict], view: View) -> dict[tuple[int, int], str]:
                     or ring.max_lat < lats.min() or ring.min_lat > lats.max()):
                 continue
             inside ^= _inside_ring(grid_lon, grid_lat, ring.points)
+        if not tinted:
+            ys, xs = np.nonzero(inside)
+            for y, x in zip(ys.tolist(), xs.tolist()):
+                cells[(x, y)] = alert["color"]
+            continue
+        edge = _edges(inside)
+        over_land, over_water = tint(alert["color"], land_colour), tint(alert["color"], water_colour)
         ys, xs = np.nonzero(inside)
         for y, x in zip(ys.tolist(), xs.tolist()):
-            cells[(x, y)] = alert["color"]
+            if edge[y, x]:
+                cells[(x, y)] = alert["color"]
+            else:
+                cells[(x, y)] = over_land if land[y, x] else over_water
     return cells
 
 class InmetAlertsLayer(SourceLayer):
@@ -163,6 +204,16 @@ class InmetAlertsLayer(SourceLayer):
         super().__init__()
         self._cells_key = None
         self._cells: dict[tuple[int, int], str] = {}
+        self._land: np.ndarray | None = None   # land cells of the view being drawn
+
+    def render_with_land(self, view: View, land_mask, *extra) -> LayerRender:
+        # The core passes the land mask of the frame; the tint of a zoomed-in area
+        # follows it (land or water colour under the warning).
+        if view.zoom >= TINT_ZOOM and land_mask is not None:
+            self._land = view.to_cell_coverage(land_mask, smooth=False) >= 0.5
+        else:
+            self._land = None
+        return self.render(view)
 
     def stamp_file(self):
         return store.path("inmet", "avisos_ativos.json")
@@ -192,7 +243,7 @@ class InmetAlertsLayer(SourceLayer):
             return LayerRender(None, DEFAULT_COLOR)  # old warnings are not shown as current
         cells_key = (view_key(view), self.data_time)
         if cells_key != self._cells_key:
-            self._cells = warning_cells(self.items, view)
+            self._cells = warning_cells(self.items, view, self._land)
             self._cells_key = cells_key
         markers = []
         for alert in self.items:
