@@ -244,7 +244,9 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
     switch_action = "br_inundation_cge.toggle"
     source_name = _("CGE flood risk, São Paulo city")
     info_title = _("CGE REGION")
-    credit = "CGE, GeoSampa"
+    credit = "CGE"   # in the tab's credits; GeoSampa is named by credits() while the outlines show
+    # GeoSampa's licence (CC BY-SA 4.0) asks for the source and the licence to be named.
+    OUTLINE_CREDIT = "GeoSampa / Prefeitura de São Paulo, CC BY-SA 4.0"
     refresh_seconds = 300
     stale_after_seconds = 3600
 
@@ -255,6 +257,7 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
         self.regions: list[dict] = []   # every region, with its state (items: the ones in a state)
         self._regions_retry_at = 0.0
         self._generation = 0            # counts parses: the cached drawings belong to one of them
+        self._drawn = False             # the outlines were drawn in the last frame
 
     # -- files ----------------------------------------------------------------------
     def stamp_file(self):
@@ -347,7 +350,8 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
                 or north < view.origin_lat - view.lat_span or south > view.origin_lat))
 
     def build(self, view: View) -> LayerRender:
-        if not self.regions or not self._in_view(view):
+        self._drawn = bool(self.regions) and self._in_view(view)
+        if not self._drawn:
             return LayerRender(None, OUTLINE_COLOR)
         outline_key = (view_key(view), self._generation)
         if outline_key != self._outline_key:
@@ -357,6 +361,17 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
             return LayerRender(self._outline_lines, OUTLINE_COLOR)  # old states are not shown as current
         flagged = super().build(view)
         return LayerRender(self._outline_lines, OUTLINE_COLOR, markers=flagged.markers, bg_cells=flagged.bg_cells)
+
+    def credits(self) -> list[str]:
+        """The CGE and the outlines' source and licence, while the layer draws (see the core's Layer.credits)."""
+        if not (self.enabled and self.shown and self._drawn):
+            return []
+        return [f"CGE (Prefeitura de São Paulo) · {self.OUTLINE_CREDIT}"]
+
+    def render(self, view: View) -> LayerRender:
+        if not self.shown:
+            self._drawn = False
+        return super().render(view)
 
     # -- legend and info box ---------------------------------------------------------
     def legend_key(self):

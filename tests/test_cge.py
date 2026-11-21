@@ -253,3 +253,18 @@ def test_an_unchanged_image_is_not_downloaded_again(layer, monkeypatch):
     assert sent == [None, "Sat, 21 Nov 2026 20:31:11 GMT"]
     layer.reload()
     assert [item["state"] for item in layer.items] == ["atencao"]
+
+
+def test_geosampa_and_its_licence_are_named_while_the_outlines_show(layer):
+    _write({})
+    layer.reload()
+    assert layer.credits() == []                       # nothing drawn yet
+    layer.build(CITY)
+    (line,) = layer.credits()
+    assert "GeoSampa" in line and "CC BY-SA 4.0" in line and "CGE" in line
+    layer.build(View(-43.2, -22.9, 64, 120, 40))      # Rio: not drawn
+    assert layer.credits() == []
+    layer.build(CITY)
+    layer.press_legend(layer.switch_action)            # switched off
+    layer.render(CITY)
+    assert layer.credits() == []
