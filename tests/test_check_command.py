@@ -21,10 +21,12 @@ class _EntryPoint:
         self.dist = _Dist(dist)
 
 
-def _tables(monkeypatch, tabs=("brasil",), layers=EXPECTED_LAYERS, core="1.1.0", plugins=True):
+def _tables(monkeypatch, tabs=("brasil",), layers=EXPECTED_LAYERS, core="1.1.0", plugins=True,
+            providers=("br",), core_providers=True):
     table = {
         check_command.TAB_GROUP: [_EntryPoint(name) for name in tabs],
         check_command.LAYER_GROUP: [_EntryPoint(name) for name in layers],
+        check_command.PROVIDER_GROUP: [_EntryPoint(name) for name in providers],
     }
     monkeypatch.setattr(
         importlib.metadata, "entry_points",
@@ -35,6 +37,8 @@ def _tables(monkeypatch, tabs=("brasil",), layers=EXPECTED_LAYERS, core="1.1.0",
 
     def find_spec(name, *args, **kwargs):
         if name == "terrascope.core.plugins" and not plugins:
+            return None
+        if name == "terrascope.layers.weather.providers" and not core_providers:
             return None
         return real_find_spec(name, *args, **kwargs)
 
@@ -84,3 +88,13 @@ def test_core_without_tab_zoom_max_is_reported(monkeypatch):
     monkeypatch.setattr(check_command, "_core_tab_keys", lambda: frozenset({"name", "label", "view"}))
     problems = check_command.check()
     assert any("zoom_max" in line for line in problems)
+
+
+def test_core_without_weather_providers_is_reported(monkeypatch):
+    _tables(monkeypatch, core_providers=False)
+    assert any("weather providers" in line for line in check_command.check())
+
+
+def test_missing_weather_provider_entry_point_is_reported(monkeypatch):
+    _tables(monkeypatch, providers=())
+    assert any("terrascope.weather_providers / br" in line for line in check_command.check())

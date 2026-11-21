@@ -17,6 +17,8 @@ import sys
 PACKAGE = "terrascope-br"
 TAB_GROUP = "terrascope.tabs"
 LAYER_GROUP = "terrascope.layers"
+PROVIDER_GROUP = "terrascope.weather_providers"
+EXPECTED_PROVIDERS = ("br",)
 EXPECTED_TABS = ("brasil",)
 EXPECTED_LAYERS = ("br_global_rain", "br_global_temp", "br_ufs", "br_municipios", "br_fires", "br_quakes",
                    "br_gauges", "br_radar", "br_inmet_alerts")
@@ -51,12 +53,18 @@ def check() -> list[str]:
             f"terrascope {core} has no plugin support (terrascope.core.plugins): "
             "install a Terrascope build with plugins, as the README says"
         )
+    elif importlib.util.find_spec("terrascope.layers.weather.providers") is None:
+        problems.append(
+            f"terrascope {core} has no weather providers (terrascope.layers.weather.providers), so "
+            "the CGE / INMET weather would not be used: update Terrascope from its main branch"
+        )
     elif "zoom_max" not in _core_tab_keys():
         problems.append(
             f"terrascope {core} does not know a tab's zoom_max, so it would skip the BRASIL tab: "
             "update Terrascope from its main branch, as the README says"
         )
-    for group, expected in ((TAB_GROUP, EXPECTED_TABS), (LAYER_GROUP, EXPECTED_LAYERS)):
+    for group, expected in ((TAB_GROUP, EXPECTED_TABS), (LAYER_GROUP, EXPECTED_LAYERS),
+                            (PROVIDER_GROUP, EXPECTED_PROVIDERS)):
         registered = _names_registered_by_this_package(group)
         for name in expected:
             if name not in registered:
