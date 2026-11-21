@@ -1,11 +1,22 @@
 """IBGE: state outlines, municipality outlines (from a zoom on) and the
-municipality name list. Each file is downloaded once and kept for 30 days."""
+municipality name list. Each file is downloaded once and kept for 30 days.
+
+The outlines have levels of detail by zoom. Up to UF_DETAIL_ZOOM the national
+files are used (one for the states, one for all municipalities, both in the
+coarsest quality). From UF_DETAIL_ZOOM on, only the states that the view shows
+are used, each from its own file: "intermediaria" quality, and "maxima" from
+UF_MAX_DETAIL_ZOOM on. A zoomed-in view never asks for a national file, so the
+national municipality mesh is downloaded and drawn only for the views of the
+whole country or of a region."""
 
 from __future__ import annotations
 
 import json
+import threading
 import time
+from collections import OrderedDict
 
+from terrascope.core import config
 from terrascope.core.layer import LayerRender
 from terrascope.core.view import View
 
@@ -17,38 +28,63 @@ from terrascope_br.net import SourceError, get
 
 MALHA_URL = ("https://servicodados.ibge.gov.br/api/v3/malhas/paises/BR"
              "?formato=application/vnd.geo%2Bjson&intrarregiao={level}&qualidade=minima")
+# One state: its outline (level "") or its municipalities (level "&intrarregiao=municipio").
+UF_MALHA_URL = ("https://servicodados.ibge.gov.br/api/v3/malhas/estados/{code}"
+                "?formato=application/vnd.geo%2Bjson{level}&qualidade={quality}")
 MUNICIPALITIES_URL = "https://servicodados.ibge.gov.br/api/v1/localidades/municipios?view=nivelado"
 DOWNLOAD_TIMEOUT = 60.0
 VALIDITY_SECONDS = 30 * 24 * 3600      # 30 days
 MUNICIPALITY_MIN_ZOOM = 8.0            # municipalities are drawn from this zoom on
+UF_DETAIL_ZOOM = 32.0                  # from here on: one file per state in view, "intermediaria"
+UF_MAX_DETAIL_ZOOM = 128.0             # from here on: "maxima"
 OUTLINE_COLOR = "#7fa3c0"
 NAMES_FILE = "municipios_nivelado.json"
 
-# Parsed cache files, by path: (modification time, parsed value). A file is parsed
-# again only when it changes, so reload() on the UI thread does not reread megabytes.
-_parsed: dict[str, tuple[float, object]] = {}
+# Parsed cache files, by path (and parser tag): (modification time, parsed value). A
+# file is parsed again only when it changes, so reload() on the UI thread does not
+# reread megabytes. The least recently used entries are dropped past PARSED_LIMIT, so
+# panning over many states does not keep every state's outlines in memory.
+_parsed: OrderedDict[str, tuple[float, object]] = OrderedDict()
+PARSED_LIMIT = 12
+_parsed_lock = threading.Lock()   # the refresh thread and the UI thread both use it
 
 def _is_fresh(file) -> bool:
     age = store.age(file)
     return age is not None and age < VALIDITY_SECONDS
 
-def _cached(file, parse):
+def _cached(file, parse, tag: str = ""):
     """parse(bytes) for `file`, reusing the last result while the file is unchanged.
-    Raises OSError when the file is missing."""
+    `tag` tells apart two parsers of the same file. Raises OSError when the file is
+    missing."""
     stamp = file.stat().st_mtime
-    key = str(file)
-    hit = _parsed.get(key)
-    if hit is not None and hit[0] == stamp:
-        return hit[1]
+    key = str(file) + tag
+    with _parsed_lock:
+        hit = _parsed.get(key)
+        if hit is not None and hit[0] == stamp:
+            _parsed.move_to_end(key)
+            return hit[1]
     data = store.read_bytes(file)
     if data is None:
         raise OSError(f"cannot read {file}")
     value = parse(data)
-    _parsed[key] = (stamp, value)
+    with _parsed_lock:
+        _parsed[key] = (stamp, value)
+        _parsed.move_to_end(key)
+        while len(_parsed) > PARSED_LIMIT:
+            _parsed.popitem(last=False)
     return value
 
-def _download_map(level: str, file) -> None:
-    _status, body, _headers = get(MALHA_URL.format(level=level), DOWNLOAD_TIMEOUT, min_gap=1.0)
+def _is_parsed(file, tag: str = "") -> bool:
+    """True when `file` was parsed already and has not changed since."""
+    with _parsed_lock:
+        hit = _parsed.get(str(file) + tag)
+    try:
+        return hit is not None and hit[0] == file.stat().st_mtime
+    except OSError:
+        return False
+
+def _download(url: str, file) -> None:
+    _status, body, _headers = get(url, DOWNLOAD_TIMEOUT, min_gap=1.0)
     try:
         payload = json.loads(body.decode("utf-8"))
     except (UnicodeDecodeError, ValueError) as error:
@@ -69,14 +105,58 @@ def _read_rings(file):
         return [], None
     return rings, time.time() - (store.age(file) or 0.0)
 
+def _read_epoch(file) -> float | None:
+    age = store.age(file)
+    return None if age is None else time.time() - age
+
 def state_rings() -> list:
     """The state outlines of the cache, read without any download: [] until the
     map has been fetched once. Other layers use it for their own shapes."""
     return _read_rings(store.path("ibge", "ufs.geojson"))[0]
 
+def _parse_boxes(data: bytes) -> dict[str, tuple[float, float, float, float]]:
+    """IBGE state code -> (west, south, east, north) of its outline."""
+    boxes: dict[str, tuple[float, float, float, float]] = {}
+    for feature in json.loads(data.decode("utf-8")).get("features", []):
+        code = str(((feature or {}).get("properties") or {}).get("codarea") or "")
+        rings = rings_from_geojson({"features": [feature]})
+        if not code or not rings:
+            continue
+        boxes[code] = (min(r.min_lon for r in rings), min(r.min_lat for r in rings),
+                       max(r.max_lon for r in rings), max(r.max_lat for r in rings))
+    return boxes
+
+def state_boxes() -> dict[str, tuple[float, float, float, float]]:
+    """IBGE state code -> bounding box, from the cached national state file; {}
+    until it has been downloaded."""
+    try:
+        return _cached(store.path("ibge", "ufs.geojson"), _parse_boxes, tag="#boxes")
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        return {}
+
+def states_in_view(view: View) -> tuple[str, ...]:
+    """Codes of the states whose box overlaps the view, in code order."""
+    west, north = view.origin_lon, view.origin_lat
+    east, south = west + view.lon_span, north - view.lat_span
+    return tuple(sorted(
+        code for code, (w, s, e, n) in state_boxes().items()
+        if not (e < west or w > east or n < south or s > north)
+    ))
+
+def detail_quality(zoom: float) -> str | None:
+    """IBGE quality of the per-state files at this zoom, or None below UF_DETAIL_ZOOM
+    (the national files are used there)."""
+    if zoom >= UF_MAX_DETAIL_ZOOM:
+        return "maxima"
+    if zoom >= UF_DETAIL_ZOOM:
+        return "intermediaria"
+    return None
+
 class _OutlineLayer(SourceLayer):
     level = "UF"
     cache_name = "ufs.geojson"
+    uf_level = ""                  # level part of UF_MALHA_URL for this layer
+    min_zoom = 0.0                 # nothing is drawn (or downloaded) below this zoom
     refresh_seconds = VALIDITY_SECONDS
     stale_after_seconds = 365 * 24 * 3600
     credit = "IBGE"
@@ -86,31 +166,128 @@ class _OutlineLayer(SourceLayer):
         super().__init__()
         self._lines_key = None
         self._lines: list[str] = []
+        # Files the current view needs, as (file, url) pairs, and the ones that
+        # `items` holds now. They differ while a new level of detail loads.
+        self._wanted: tuple = self.start_pieces()
+        self._loaded: tuple = ()
+        # True when the view needs the per-state files but the state boxes are not
+        # known yet: the small national state file is fetched for them.
+        self._needs_boxes = False
+        self._pieces_key = None
 
+    # -- which files a view needs -----------------------------------------------------
+    def national_piece(self):
+        return (store.path("ibge", self.cache_name), MALHA_URL.format(level=self.level))
+
+    def start_pieces(self) -> tuple:
+        """The files read at startup, before any view is known."""
+        return (self.national_piece(),)
+
+    def pieces_for(self, view: View) -> tuple:
+        """The files this view needs. Sets _needs_boxes."""
+        self._needs_boxes = False
+        if view.zoom < self.min_zoom:
+            return ()
+        quality = detail_quality(view.zoom)
+        if quality is None:
+            return (self.national_piece(),)
+        if not state_boxes():
+            # Which states are in view is not known yet: nothing is drawn until the
+            # national state file (about 100 kB) brings the boxes. Never a national
+            # outline file at this zoom.
+            self._needs_boxes = True
+            return ()
+        prefix = "mun" if self.uf_level else "uf"
+        return tuple(
+            (store.path("ibge", f"{prefix}-{code}-{quality}.geojson"),
+             UF_MALHA_URL.format(code=code, level=self.uf_level, quality=quality))
+            for code in states_in_view(view)   # () over the sea or a neighbour: nothing to draw
+        )
+
+    # -- refresh cycle -----------------------------------------------------------------
     def stamp_file(self):
         return store.path("ibge", self.cache_name)
 
+    def _boxes_file(self):
+        return store.path("ibge", "ufs.geojson")
+
+    def is_due(self) -> bool:
+        if self._needs_boxes and not _is_fresh(self._boxes_file()):
+            return True
+        wanted = self._wanted
+        if not wanted:
+            return False
+        if any(not _is_fresh(file) for file, _url in wanted):
+            return True
+        # Downloaded but not read yet: read them in the background, not on the UI thread.
+        return wanted != self._loaded and any(not _is_parsed(file) for file, _url in wanted)
+
     def fetch(self) -> None:
-        _download_map(self.level, self.stamp_file())
+        if self._needs_boxes and not _is_fresh(self._boxes_file()):
+            _download(MALHA_URL.format(level="UF"), self._boxes_file())
+        for file, url in self._wanted:
+            if not _is_fresh(file):
+                _download(url, file)
+            try:
+                _cached(file, _parse_rings)   # parse here, off the UI thread
+            except Exception as error:
+                # A damaged file is removed, so the next refresh downloads it again.
+                file.unlink(missing_ok=True)
+                raise SourceError(f"IBGE map unreadable: {error}") from error
 
     def parse(self):
-        return _read_rings(self.stamp_file())
+        wanted = self._wanted
+        if not wanted:
+            # Nothing drawn at this zoom: the legend tells the age of the national file.
+            self._loaded = ()
+            return [], _read_epoch(self.stamp_file())
+        if (self._loaded and config.FETCH_NEW_DATA_FROM_API
+                and any(not _is_parsed(file) for file, _url in wanted)):
+            # The new level is not read yet: keep the outlines on screen until the
+            # refresh thread has read it (then this runs again).
+            return self.items, self.data_time
+        rings: list = []
+        epochs: list[float] = []
+        for file, _url in wanted:
+            file_rings, epoch = _read_rings(file)
+            if epoch is None:
+                continue
+            rings.extend(file_rings)
+            epochs.append(epoch)
+        self._loaded = wanted
+        return rings, (min(epochs) if epochs else None)
 
     def clear(self) -> None:
         super().clear()
         self._lines_key = None
         self._lines = []
+        self._loaded = ()
+        self._pieces_key = None
 
     def visible(self, view: View) -> bool:
-        return True
+        """Work out the files this view needs; False when nothing is drawn at its zoom.
+        A change is read at once when its files are parsed already. Otherwise the old
+        outlines stay until the background refresh has read the new ones; offline,
+        where nothing is refreshed, the cached files are read here at once."""
+        key = view_key(view)
+        if key != self._pieces_key or self._needs_boxes:
+            self._pieces_key = key
+            wanted = self.pieces_for(view)
+            if wanted != self._wanted:
+                self._wanted = wanted
+                if wanted != self._loaded and (
+                    all(_is_parsed(file) for file, _url in wanted) or not config.FETCH_NEW_DATA_FROM_API
+                ):
+                    self.reload()
+        return bool(self._wanted)
 
     def build(self, view: View) -> LayerRender:
-        # visible() runs first: it sets the zoom gate even while the cache is empty,
-        # otherwise a municipality layer that never had data would never be downloaded.
+        # visible() runs first: it sets the wanted files even while the cache is empty,
+        # otherwise a layer that never had data would never be downloaded.
         shown = self.visible(view)
         if not self.items or not shown:
             return LayerRender(None, self.line_color)
-        key = view_key(view)
+        key = (view_key(view), id(self.items))
         if key != self._lines_key:
             self._lines = draw_outlines(self.items, view)
             self._lines_key = key
@@ -123,6 +300,7 @@ class StateOutlinesLayer(_OutlineLayer):
     info_title = _("STATE")
     level = "UF"
     cache_name = "ufs.geojson"
+    uf_level = ""
 
 class MunicipalityOutlinesLayer(_OutlineLayer):
     name = "br_municipios"
@@ -131,18 +309,11 @@ class MunicipalityOutlinesLayer(_OutlineLayer):
     info_title = _("MUNICIPALITY")
     level = "municipio"
     cache_name = "municipios.geojson"
+    uf_level = "&intrarregiao=municipio"
+    min_zoom = MUNICIPALITY_MIN_ZOOM
 
-    def __init__(self) -> None:
-        super().__init__()
-        self._zoomed_in = False
-
-    def is_due(self) -> bool:
-        # Downloaded only once the view is zoomed in far enough to use it.
-        return self._zoomed_in and super().is_due()
-
-    def visible(self, view: View) -> bool:
-        self._zoomed_in = view.zoom >= MUNICIPALITY_MIN_ZOOM
-        return self._zoomed_in
+    def start_pieces(self) -> tuple:
+        return ()  # nothing until a view is zoomed in far enough
 
 def _names_from(items) -> dict[str, tuple[str, str]]:
     """IBGE code -> (name, UF) from the localities list. Entries without a code,

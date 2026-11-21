@@ -112,3 +112,18 @@ Each one needs a visual equivalence check (same lit Braille cells, or a document
 - RSS is the Windows working set. Windows does not return freed heap pages to the system straight away, which is
   why RSS after release (61 MB) stays above the start (55 MB).
 - Each run downloads the map from the IBGE API. The figures are for the file served on 2026-11-14 (5,602 rings).
+
+## Levels of detail (per-state files)
+
+Since the BRASIL tab zooms in to 256, the outlines change source with the zoom (see the README, "Home view and
+zoom"). Cost of the detailed files, measured the same way (108 x 58 cells, centre on the city of São Paulo, median of
+9 frames):
+
+| File | Size | Rings | Points | Parse | Zoom 64 | 128 | 256 |
+|---|---|---|---|---|---|---|---|
+| São Paulo municipalities, `maxima` | 4.9 MB | 690 | 222,324 | 0.7 s | 6.5 ms | 3.7 ms | 2.1 ms |
+| Brazil municipalities, `intermediaria` (not used: for comparison) | 12.3 MB | 5,661 | 545,562 | 1.8 s | 6.5 ms | 4.8 ms | 4.2 ms |
+
+Zoomed in, only a few rings touch the view, so the detailed files are cheap to draw. The cost is in the parse and in
+the wide views; that is why the national file stays at `minima` and the detailed ones are per state, read in the
+background thread of the layer refresh.

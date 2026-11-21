@@ -28,8 +28,8 @@ When a release with plugin support is out, this line changes to that release.
 
 | Layer (`--disable-layer`) | Key | Source | Refresh | Notes |
 |---|---|---|---|---|
-| `br_ufs` | U | IBGE, state outlines | once per 30 days | |
-| `br_municipios` | I | IBGE, municipality outlines | once per 30 days | downloaded only from zoom 8 on |
+| `br_ufs` | U | IBGE, state outlines | once per 30 days | national file up to zoom 32, then one file per state in view (see below) |
+| `br_municipios` | I | IBGE, municipality outlines | once per 30 days | from zoom 8 on; national file up to zoom 32, then one file per state in view |
 | `br_fires` | F | INPE Queimadas | 10 min | hotspots of the last 3 h |
 | `br_quakes` | B | IAG-USP catalogue, or USGS if IAG-USP fails | 30 min | last 30 days, Brazil and neighbours |
 | `br_gauges` | G | SP Águas, rain gauges | 10 min | rain in the last hour, city from the IBGE code |
@@ -89,10 +89,30 @@ Each layer uses at most two legend lines: its title, then either its colour key 
 attention (no data yet, last update failed, or no update since a time). Credits are not repeated in the legend; they
 are in the BRASIL tab's attribution line.
 
-## Home view
+## Home view and zoom
 
 The BRASIL tab sets `view: {lat: -14, lon: -52, zoom: 3}`, so the map opens over Brazil. The view is applied each time
 the tab is opened; see the plugin section of the Terrascope README.
+
+The tab also sets `zoom_max: 256`, four times closer than the world map (64): at 256 one braille dot is about 260 m.
+The IBGE outlines follow the zoom so that the detail matches the dots:
+
+| Zoom | State and municipality outlines | 1 dot (108 x 58 cells) |
+|---|---|---|
+| up to 32 | national files, `minima` quality (municipalities from zoom 8) | 2.1 km and more |
+| 32 to 128 | one file per state in view, `intermediaria` (a vertex every 1.2 km in Greater São Paulo) | 2.1 km to 530 m |
+| 128 to 256 | one file per state in view, `maxima` (a vertex every 250 m) | 530 m to 260 m |
+
+A zoomed-in view never asks for a national file: the national municipality mesh (3.6 MB) is downloaded and drawn
+only for the wide views. The per-state files are downloaded the first time a view shows that state at that level
+(São Paulo: 1.0 MB `intermediaria`, 4.9 MB `maxima`; Minas Gerais `maxima`: 8.8 MB), read in the background, and kept
+for 30 days. While a new level loads, the previous outlines stay on the screen. The boxes of the states come from the
+national state file (about 100 kB), which the tab reads at its home view; a view over the sea or a
+neighbouring country draws no IBGE outline. Offline, the cached files of a new level are read at once, which can
+pause the screen for up to a second for the largest states.
+
+From zoom 16 on, the core draws the coast from Natural Earth 1:10m (`map.zoom.detail_min`), so it matches the IBGE
+outlines at the coast.
 
 ## Behaviour
 
