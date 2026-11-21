@@ -292,15 +292,18 @@ def municipality_at(latitude: float, longitude: float) -> str | None:
 
 # ---- CGE (municipality of São Paulo) ---------------------------------------------
 
-_pages: dict[str, tuple[float, str]] = {}
+_pages: dict[str, tuple[float, bytes]] = {}   # url -> (when, body): answers reused for a while
 
-def _page(url: str, keep: float) -> str:
+def _page_bytes(url: str, keep: float) -> bytes:
     hit = _pages.get(url)
     if hit is not None and time.monotonic() - hit[0] < keep:
         return hit[1]
-    text = _text(_fetch(url))
-    _pages[url] = (time.monotonic(), text)
-    return text
+    body = _fetch(url)
+    _pages[url] = (time.monotonic(), body)
+    return body
+
+def _page(url: str, keep: float) -> str:
+    return _text(_page_bytes(url, keep))
 
 def _strip(fragment: str) -> str:
     return " ".join(html.unescape(re.sub(r"<[^>]+>", " ", fragment)).split())
@@ -521,7 +524,12 @@ def _now() -> datetime:
 
 
 class KeyRefused(Exception):
-    """INMET refused the station API key (HTTP 401/403 or "CHAVE INVÁLIDA")."""
+    """INMET refused the station API key (HTTP 401/403 or "CHAVE INVÁLIDA").
+    `lasting` is True for the explicit text refusal."""
+
+    def __init__(self, message: str, lasting: bool) -> None:
+        super().__init__(message)
+        self.lasting = lasting
 
 
 def token_file() -> Path | None:
@@ -540,13 +548,24 @@ def inmet_token() -> str:
     if file is None:
         return ""
     try:
-        text = file.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
+        raw = file.read_bytes()
+    except OSError:
         return ""
-    return next((line.strip() for line in text.splitlines() if line.strip() and not line.startswith("#")), "")
+    # Windows editors and PowerShell may write a BOM, or UTF-16 (Out-File's default).
+    encoding = "utf-16" if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else "utf-8-sig"
+    try:
+        text = raw.decode(encoding)
+    except UnicodeDecodeError:
+        return ""
+    return next((line.strip() for line in text.splitlines()
+                 if line.strip() and not line.strip().startswith("#")), "")
 
 
-_refused: set[str] = set()    # keys INMET refused in this run (not sent again)
+# Keys INMET refused -> monotonic time until which they are not sent again. "CHAVE
+# INVÁLIDA" holds for the run; an HTTP 401/403 (which a firewall or a rate limit
+# may send too) only for REFUSED_HTTP_SECONDS.
+_refused: dict[str, float] = {}
+REFUSED_HTTP_SECONDS = 30 * 60
 
 
 def distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -557,11 +576,27 @@ def distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 6371.0 * 2 * math.asin(min(1.0, math.sqrt(a)))
 
 
-def parse_station_reading(record: dict, now: datetime) -> dict | None:
+# Time zone by IBGE state code (the first two digits of a municipality code); the
+# rest of Brazil, and an unknown code, is on São Paulo time. Fernando de Noronha
+# has its own.
+STATE_ZONES = {"11": "America/Porto_Velho", "12": "America/Rio_Branco", "13": "America/Manaus",
+               "14": "America/Boa_Vista", "50": "America/Campo_Grande", "51": "America/Cuiaba"}
+NORONHA = "2605459"
+
+
+def local_zone(code: str | None) -> ZoneInfo:
+    """The time zone of an IBGE municipality."""
+    code = str(code or "")
+    if code == NORONHA:
+        return ZoneInfo("America/Noronha")
+    return ZoneInfo(STATE_ZONES.get(code[:2], "America/Sao_Paulo"))
+
+
+def parse_station_reading(record: dict, now: datetime, zone: ZoneInfo = SAO_PAULO_TIME) -> dict | None:
     """The core's current conditions from one INMET station record (keys as the
     APIs send them: TEM_INS, VEN_VEL in m/s, VEN_DIR, DT_MEDICAO, HR_MEDICAO in
     UTC "HHMM"), or None without a temperature or when the reading is older than
-    STATION_MAX_AGE (or in the future). The time is given in São Paulo time."""
+    STATION_MAX_AGE (or in the future). The time is given in `zone` (the place's)."""
     temperature = _number(record.get("TEM_INS"))
     if temperature is None:
         return None
@@ -579,39 +614,48 @@ def parse_station_reading(record: dict, now: datetime) -> dict | None:
         "windspeed": round(wind * 3.6, 1) if wind is not None else None,
         "winddirection": _number(record.get("VEN_DIR")),
         "weathercode": None, "summary": None,
-        "time": observed.astimezone(SAO_PAULO_TIME).strftime("%Y-%m-%dT%H:%M"),
+        "time": observed.astimezone(zone).strftime("%Y-%m-%dT%H:%M"),
     }
 
 
 def _stations() -> list[dict]:
-    """The automatic stations (code, latitude, longitude, name), from a copy kept a day."""
+    """The automatic stations (code, latitude, longitude, name), from a copy kept a
+    day and parsed once per copy. Only a usable list is kept; a damaged copy is
+    removed and downloaded again."""
     file = store.path("inmet", STATIONS_FILE)
     age = store.age(file)
-    body = store.read_bytes(file) if age is not None and age < STATIONS_SECONDS else None
-    if body is None:
-        body = _fetch(STATIONS_URL)
-        stations = _parse_stations(body)
+    if age is not None and age < STATIONS_SECONDS:
         try:
-            store.write_bytes(file, body)
-        except OSError:
-            pass
-        return stations
-    return _parse_stations(body)
+            return ibge._cached(file, _parse_stations, tag="#stations")
+        except (OSError, WeatherFetchError):
+            file.unlink(missing_ok=True)
+    body = _fetch(STATIONS_URL)
+    stations = _parse_stations(body)   # raises before anything is kept
+    try:
+        store.write_bytes(file, body)
+    except OSError:
+        pass
+    return stations
 
 
 def _parse_stations(body: bytes) -> list[dict]:
+    """Raises WeatherFetchError when the answer is not a list with stations."""
     try:
         items = json.loads(_text(body))
     except ValueError as error:
         raise WeatherFetchError(f"INMET station list unreadable: {error}") from error
+    if not isinstance(items, list):
+        raise WeatherFetchError("INMET station list is not a list")
     stations = []
-    for item in items if isinstance(items, list) else []:
+    for item in items:
         if not isinstance(item, dict) or str(item.get("CD_SITUACAO") or "Operante") != "Operante":
             continue
         lat, lon = _number(item.get("VL_LATITUDE")), _number(item.get("VL_LONGITUDE"))
         code = str(item.get("CD_ESTACAO") or "").strip()
         if code and lat is not None and lon is not None:
             stations.append({"code": code, "lat": lat, "lon": lon, "name": str(item.get("DC_NOME") or code)})
+    if not stations:
+        raise WeatherFetchError("INMET station list has no station")
     return stations
 
 
@@ -621,7 +665,8 @@ def nearest_station(stations: list[dict], latitude: float, longitude: float) -> 
     return (best[1], best[0]) if best is not None else None
 
 
-def _keyed_reading(token: str, latitude: float, longitude: float, now: datetime) -> tuple[dict, str] | None:
+def _keyed_reading(token: str, latitude: float, longitude: float, now: datetime,
+                   zone: ZoneInfo = SAO_PAULO_TIME) -> tuple[dict, str] | None:
     """(current conditions, station code) from the station API with a key, or None
     when no station is close enough or it has no recent reading. Raises
     KeyRefused, WeatherFetchError."""
@@ -632,15 +677,7 @@ def _keyed_reading(token: str, latitude: float, longitude: float, now: datetime)
     day = now.astimezone(timezone.utc).date()
     url = STATION_URL.format(start=(day - timedelta(days=1)).isoformat(), end=day.isoformat(),
                              station=station["code"], token=quote(token, safe=""))
-    try:
-        body = _page_bytes(url, STATION_SECONDS)
-    except WeatherFetchError as error:
-        if re.search(r"HTTP 40[13]\b", str(error)):
-            raise KeyRefused(str(error)) from error
-        raise
-    text = _text(body).strip()
-    if text.upper().startswith(INVALID_KEY_TEXT):
-        raise KeyRefused(text)
+    text = _ask_with_key(url)
     if not text:
         return None   # HTTP 204: no data for the period
     try:
@@ -649,13 +686,43 @@ def _keyed_reading(token: str, latitude: float, longitude: float, now: datetime)
         raise WeatherFetchError(f"INMET station answer unreadable: {error}") from error
     for record in sorted((r for r in records if isinstance(r, dict)) if isinstance(records, list) else [],
                          key=lambda r: (str(r.get("DT_MEDICAO")), str(r.get("HR_MEDICAO")).zfill(4)), reverse=True):
-        current = parse_station_reading(record, now)
+        current = parse_station_reading(record, now, zone)
         if current is not None:
             return current, station["code"]
     return None
 
 
-def _keyless_reading(code: str, latitude: float, longitude: float, now: datetime) -> tuple[dict, str] | None:
+def _ask_with_key(url: str) -> str:
+    """The station API's answer as text. Raises KeyRefused when INMET refuses the
+    key, WeatherFetchError when it does not answer."""
+    try:
+        body = _page_bytes(url, STATION_SECONDS)
+    except WeatherFetchError as error:
+        if re.search(r"HTTP 40[13]\b", str(error)):
+            raise KeyRefused(str(error), lasting=False) from error
+        raise
+    text = _text(body).strip()
+    if text.upper().startswith(INVALID_KEY_TEXT):
+        raise KeyRefused(text, lasting=True)
+    return text
+
+
+def try_key(token: str, station: str = "A701", now: datetime | None = None) -> tuple[bool, str]:
+    """(accepted, what INMET said) for one request of the station API with `token`,
+    as the provider sends it. Raises WeatherFetchError when INMET does not answer."""
+    day = (now or _now()).astimezone(timezone.utc).date()
+    url = STATION_URL.format(start=(day - timedelta(days=1)).isoformat(), end=day.isoformat(),
+                             station=station, token=quote(token, safe=""))
+    _pages.pop(url, None)   # a check asks INMET now, not the answer kept for the map
+    try:
+        text = _ask_with_key(url)
+    except KeyRefused as refusal:
+        return False, str(refusal)
+    return True, "no data for the period" if not text else f"station {station} answered"
+
+
+def _keyless_reading(code: str, latitude: float, longitude: float, now: datetime,
+                     zone: ZoneInfo = SAO_PAULO_TIME) -> tuple[dict, str] | None:
     """(current conditions, station code) from the forecast service's nearest
     station for an IBGE municipality (no key), or None when it is too far or old."""
     try:
@@ -670,45 +737,48 @@ def _keyless_reading(code: str, latitude: float, longitude: float, now: datetime
     lat, lon = _number(station.get("LATITUDE")), _number(station.get("LONGITUDE"))
     if lat is None or lon is None or distance_km(latitude, longitude, lat, lon) > STATION_MAX_KM:
         return None
-    current = parse_station_reading(record, now)
+    current = parse_station_reading(record, now, zone)
     return (current, str(station.get("CODIGO") or record.get("CD_ESTACAO") or "")) if current else None
 
 
 def station_reading(code: str, latitude: float, longitude: float, now: datetime | None = None) -> tuple[dict, str] | None:
     """The current conditions of the nearest INMET station: with the key when one
-    is set and not refused, else (and when INMET refuses it) without it."""
+    is set and not refused; without it when there is no key, or the keyed answer
+    is refused, fails or has no recent reading close enough. Raises
+    WeatherFetchError only when the keyless answer fails too."""
     now = now or _now()
+    zone = local_zone(code)
     token = inmet_token()
-    if token and token not in _refused:
+    keyed_error = None
+    if token and time.monotonic() >= _refused.get(token, 0.0):
         try:
-            return _keyed_reading(token, latitude, longitude, now)
-        except KeyRefused:
-            _refused.add(token)   # not sent again in this run; the keyless answer stands in
-    return _keyless_reading(code, latitude, longitude, now)
+            found = _keyed_reading(token, latitude, longitude, now, zone)
+            if found is not None:
+                return found
+        except KeyRefused as refusal:
+            _refused[token] = math.inf if refusal.lasting else time.monotonic() + REFUSED_HTTP_SECONDS
+        except WeatherFetchError as error:
+            keyed_error = error
+    try:
+        return _keyless_reading(code, latitude, longitude, now, zone)
+    except WeatherFetchError as error:
+        if keyed_error is not None:
+            raise WeatherFetchError(f"with the key: {keyed_error}; without: {error}") from error
+        raise
 
 
-_answers: dict[str, tuple[float, bytes]] = {}
-
-
-def _page_bytes(url: str, keep: float) -> bytes:
-    """GET with a short memory: several towns share a station."""
-    hit = _answers.get(url)
-    if hit is not None and time.monotonic() - hit[0] < keep:
-        return hit[1]
-    body = _fetch(url)
-    _answers[url] = (time.monotonic(), body)
-    return body
-
-
-def _summary_now(forecast: list[dict], now: datetime) -> str | None:
-    """The words of the running part of today's forecast (stations have no sky reading)."""
-    local = now.astimezone(SAO_PAULO_TIME)
+def _summary_now(forecast: list[dict], now: datetime, zone: ZoneInfo = SAO_PAULO_TIME) -> str | None:
+    """The words of the running part of today's forecast at the place's own time
+    (stations have no sky reading); None when that part is not in the forecast
+    (INMET has no overnight part, and today's night is not the small hours)."""
+    local = now.astimezone(zone)
     today = next((day for day in forecast if day.get("date") == local.date().isoformat()), None)
     if today is None:
         return None
     parts = {part.get("part"): part.get("summary") for part in today.get("periods") or [] if isinstance(part, dict)}
-    # INMET has no overnight part: the small hours take the night's words.
-    return parts.get(min(3, max(0, local.hour // 6))) or parts.get(3) or today.get("summary")
+    if not parts:
+        return today.get("summary")
+    return parts.get(min(3, max(0, local.hour // 6)))
 
 
 class FederalProvider(WeatherProvider):
@@ -742,7 +812,7 @@ class FederalProvider(WeatherProvider):
             found = None
         if found is not None:
             current, station = found
-            summary = _summary_now(forecast, now) if forecast_source == "INMET" else None
+            summary = _summary_now(forecast, now, local_zone(code)) if forecast_source == "INMET" else None
             if summary:
                 current = {**current, "summary": summary, "weathercode": wmo_code(summary)}
             current_source = f"INMET {station}".strip()

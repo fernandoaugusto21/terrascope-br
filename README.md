@@ -137,8 +137,13 @@ station, for example `INMET A701 · forecast INMET`.
 - A station more than 50 km away or a reading more than 3 h old is not used: the core's next provider (Open-Meteo)
   answers for the current conditions, with no error on screen.
 - A key INMET refuses (HTTP 401 or 403, or the text `CHAVE INVÁLIDA!`, which INMET sends with HTTP 200) is not sent
-  again in that run; the keyless answer stands in. A city refreshes its weather every 15 minutes; each answer is reused
-  for 10 minutes by the towns that share its station.
+  again in that run (after an HTTP 401 or 403, which a firewall may send too, it is tried again after 30 minutes); the
+  keyless answer stands in. The keyless answer also stands in when the keyed one fails or has no recent reading close
+  enough. A city refreshes its weather every 15 minutes: without a key that is one request per municipality; with a
+  key the towns that share a station share its answer for 10 minutes.
+- The time shown is the place's own (by state: Acre, Amazonas, Rondônia, Roraima, Mato Grosso and Mato Grosso do Sul
+  are behind São Paulo), and the conditions words come from the part of today's forecast running there; INMET has no
+  overnight part, so from midnight to 6 h a station reading has no words.
 
 How to get a key. INMET publishes no sign-up page; the API manual's address
 (`portal.inmet.gov.br/manual/manual-de-uso-da-api-estações`) answered HTTP 404 on 2026-11-21. The channel used by

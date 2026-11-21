@@ -87,31 +87,28 @@ def check_inmet_token() -> int:
     """`python -m terrascope_br inmet-token`: say where the INMET station key comes
     from and whether INMET accepts it (one request to the station API)."""
     import os
-    from datetime import datetime, timedelta, timezone
+
+    from terrascope.layers.weather.city_weather import WeatherFetchError
 
     from terrascope_br.sources import weather_providers as wp
 
     token = wp.inmet_token()
+    file = wp.token_file()
     if not token:
-        print(f"terrascope-br: no INMET station key: set {wp.TOKEN_ENV} or write it in "
-              f"{wp.token_file()}; the current conditions come from the keyless nearest-station answer")
+        place = f" or write it in {file}" if file is not None else ""
+        print(f"terrascope-br: no INMET station key: set {wp.TOKEN_ENV}{place}; "
+              "the current conditions come from the keyless nearest-station answer")
         return 1
-    where = wp.TOKEN_ENV if os.environ.get(wp.TOKEN_ENV, "").strip() else str(wp.token_file())
-    day = datetime.now(timezone.utc).date()
-    url = wp.STATION_URL.format(start=(day - timedelta(days=1)).isoformat(), end=day.isoformat(),
-                                station="A701", token=token)
+    where = wp.TOKEN_ENV if os.environ.get(wp.TOKEN_ENV, "").strip() else str(file)
     try:
-        status, body, _headers = wp.get(url, wp.TIMEOUT, min_gap=1.0)
-    except wp.SourceError as error:
-        refused = any(code in str(error) for code in ("HTTP 401", "HTTP 403"))
-        print(f"terrascope-br: INMET {'refused' if refused else 'did not answer'} the key from {where}: {error}")
+        accepted, said = wp.try_key(token)   # the same request and rules as the provider
+    except WeatherFetchError as error:
+        print(f"terrascope-br: INMET did not answer for the key from {where}: {error}")
         return 1
-    text = wp._text(body).strip()
-    if text.upper().startswith(wp.INVALID_KEY_TEXT):
-        print(f"terrascope-br: INMET refused the key from {where}: {text}")
+    if not accepted:
+        print(f"terrascope-br: INMET refused the key from {where}: {said}")
         return 1
-    print(f"terrascope-br: INMET accepted the key from {where} (HTTP {status}, "
-          f"{'no data for the period' if not text else 'station A701 answered'}).")
+    print(f"terrascope-br: INMET accepted the key from {where} ({said}).")
     return 0
 
 

@@ -114,7 +114,6 @@ def cache(tmp_path, monkeypatch):
     ibge._parsed.clear()
     wp._found.clear()
     wp._pages.clear()
-    wp._answers.clear()
     wp._refused.clear()
     monkeypatch.delenv(wp.TOKEN_ENV, raising=False)
     monkeypatch.setattr(config, "USER_CONFIG_DIR", tmp_path / "config", raising=False)
@@ -347,7 +346,7 @@ def test_a_refused_key_falls_back_to_the_keyless_answer_and_is_not_sent_again(ca
                                  "/token/estacao/": refusal, "/estacao/proxima/3518800": NEAREST})
     reading = wp.FederalProvider().fetch(*GUARULHOS)
     assert reading.current_source == "INMET A701" and reading.current["temperature"] == 29.1   # keyless
-    wp._answers.clear()
+    wp._pages.clear()
     wp.FederalProvider().fetch(*GUARULHOS)
     assert sum("/token/estacao/" in url for url in asked) == 1
 
@@ -402,3 +401,61 @@ def test_the_key_check_command_says_where_the_key_is_and_what_inmet_says(cache, 
     assert command.main(["inmet-token"]) == 0 and "accepted" in capsys.readouterr().out
     _serve(monkeypatch, {"/token/estacao/": SourceError("HTTP 403")})
     assert command.main(["inmet-token"]) == 1 and "refused" in capsys.readouterr().out
+
+
+def test_a_failing_or_empty_keyed_answer_falls_back_to_the_keyless_one(cache, monkeypatch):
+    monkeypatch.setenv(wp.TOKEN_ENV, "GOOD-KEY")
+    for keyed in (SourceError("HTTP 503"), b"", json.dumps([]).encode()):
+        wp._pages.clear()
+        _serve(monkeypatch, {"/previsao/": FORECAST, "/estacoes/T": STATIONS,
+                             "/token/estacao/": keyed, "/estacao/proxima/3518800": NEAREST})
+        reading = wp.FederalProvider().fetch(*GUARULHOS)
+        assert reading.current_source == "INMET A701" and reading.current["temperature"] == 29.1
+    assert not wp._refused   # a failure is not a refusal
+
+
+def test_an_http_refusal_is_retried_later_a_text_refusal_not_in_this_run(cache, monkeypatch):
+    monkeypatch.setenv(wp.TOKEN_ENV, "KEY")
+    _serve(monkeypatch, {"/previsao/": FORECAST, "/estacoes/T": STATIONS,
+                         "/token/estacao/": SourceError("HTTP 403"), "/estacao/proxima/3518800": NEAREST})
+    wp.FederalProvider().fetch(*GUARULHOS)
+    assert wp._refused["KEY"] != float("inf")
+    wp._refused.clear()
+    wp._pages.clear()
+    _serve(monkeypatch, {"/previsao/": FORECAST, "/estacoes/T": STATIONS,
+                         "/token/estacao/": b"CHAVE INV\xc3\x81LIDA!", "/estacao/proxima/3518800": NEAREST})
+    wp.FederalProvider().fetch(*GUARULHOS)
+    assert wp._refused["KEY"] == float("inf")
+
+
+def test_an_empty_or_odd_station_list_is_not_kept(cache, monkeypatch):
+    for odd in (b"[]", b'{"message": "erro"}'):
+        _serve(monkeypatch, {"/estacoes/T": odd})
+        with pytest.raises(WeatherFetchError):
+            wp._stations()
+        assert not store.path("inmet", wp.STATIONS_FILE).exists()
+    store.write_bytes(store.path("inmet", wp.STATIONS_FILE), b"{damaged")
+    _serve(monkeypatch, {"/estacoes/T": STATIONS})
+    assert {station["code"] for station in wp._stations()} >= {"A701"}   # the damaged copy is replaced
+
+
+@pytest.mark.parametrize("data", [
+    "\ufeffBOM-KEY\n".encode("utf-8"), "BOM-KEY\n".encode("utf-16"), b"   # a comment\nBOM-KEY\n",
+])
+def test_key_files_from_windows_editors(cache, data):
+    folder = config.USER_CONFIG_DIR / "br"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "inmet_token.txt").write_bytes(data)
+    assert wp.inmet_token() == "BOM-KEY"
+
+
+def test_the_time_and_part_of_the_day_are_the_places_own():
+    record = json.loads(NEAREST)["dados"]   # 19:00 UTC
+    assert wp.parse_station_reading(record, datetime(2026, 11, 21, 19, 30, tzinfo=timezone.utc),
+                                    wp.local_zone("1200401"))["time"] == "2026-11-21T14:00"   # Rio Branco, UTC-5
+    assert wp.local_zone("3518800").key == "America/Sao_Paulo" and wp.local_zone("2605459").key == "America/Noronha"
+    days = wp.parse_inmet(json.loads(FORECAST), "3518800")
+    small_hours = datetime(2026, 11, 21, 5, 0, tzinfo=timezone.utc)   # 02:00 in São Paulo
+    assert wp._summary_now(days, small_hours) is None
+    afternoon = datetime(2026, 11, 21, 17, 0, tzinfo=timezone.utc)    # 14:00
+    assert wp._summary_now(days, afternoon) == days[0]["periods"][1]["summary"]
