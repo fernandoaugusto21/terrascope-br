@@ -26,7 +26,7 @@ def brasil_tabs() -> list[dict]:
             "detailed": True,
             # The city temperature labels take the place of the basemap's city names (as on the WEATHER tab).
             "place_names": False,
-            "attribution": _("Data: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, RainViewer, Open-Meteo"),
+            "attribution": _("Data: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, CGE, RainViewer, Open-Meteo"),
             "view": {"lat": -14, "lon": -52, "zoom": 3},
             # Closer than the world map (64): at 256 one braille dot is about 260 m, the detail
             # of the IBGE "maxima" outlines (see ibge.py).

@@ -28,6 +28,10 @@ Certainty:
 | USGS earthquake feed (fallback) | `https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson` | `sources/iag.py` |
 | SP Águas measurements (SIBH) | `https://apps.spaguas.sp.gov.br/sibh/api/v2/measurements/now?station_type_id=2&hours=1` | `sources/spaguas.py` |
 | IAG-USP Chuva Online radar | `https://www.starnet.iag.usp.br/img_starnet/Radar_USP/pelletron_36km/loop/36km_loop_{index}.png` (10 frames) | `sources/chuva_online.py` |
+| CGE São Paulo (terms not checked yet) | `https://www.cgesp.org/v3/previsao_estendida.jsp`, `https://www.cgesp.org/v3/estacao.jsp?POSTO=503` | `sources/weather_providers.py` |
+| INMET forecast (terms not checked yet) | `https://apiprevmet3.inmet.gov.br/previsao/{IBGE code}` | `sources/weather_providers.py` |
+| CPTEC/INPE forecast (terms not checked yet) | `https://servicos.cptec.inpe.br/XML/listaCidades?city={name}`, `https://servicos.cptec.inpe.br/XML/cidade/7dias/{id}/previsao.xml` | `sources/weather_providers.py` |
+| IBGE malhas by state | `https://servicodados.ibge.gov.br/api/v3/malhas/estados/{code}?...&qualidade={minima,intermediaria,maxima}` | `sources/ibge.py`, `sources/weather_providers.py` |
 
 ## 1. IBGE (malhas and localidades APIs)
 

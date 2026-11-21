@@ -49,6 +49,11 @@ br_gauges = "terrascope_br.sources.spaguas:RainGaugeLayer"
 br_radar = "terrascope_br.sources.chuva_online:RadarLayer"
 br_inmet_alerts = "terrascope_br.sources.inmet:InmetAlertsLayer"
 
+[project.entry-points."terrascope.weather_providers"]
+# City weather in Brazil: CGE for the municipality of São Paulo, INMET (CPTEC/INPE
+# as fallback) for the forecast elsewhere. Needs a core with weather providers.
+br = "terrascope_br.sources.weather_providers:providers"
+
 [tool.hatch.build.hooks.custom]
 
 [tool.hatch.build.targets.wheel]

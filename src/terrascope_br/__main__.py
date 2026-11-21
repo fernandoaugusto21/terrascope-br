@@ -17,6 +17,8 @@ import sys
 PACKAGE = "terrascope-br"
 TAB_GROUP = "terrascope.tabs"
 LAYER_GROUP = "terrascope.layers"
+PROVIDER_GROUP = "terrascope.weather_providers"
+EXPECTED_PROVIDERS = ("br",)
 EXPECTED_TABS = ("brasil",)
 EXPECTED_LAYERS = ("br_global_rain", "br_global_temp", "br_ufs", "br_municipios", "br_fires", "br_quakes",
                    "br_gauges", "br_radar", "br_inmet_alerts")
@@ -40,7 +42,8 @@ def _core_tab_keys() -> frozenset:
 
 
 def check() -> list[str]:
-    """The problems found, one line each. An empty list means the tab loads."""
+    """The problems found, one line each. An empty list means the tab, the layers and
+    the weather providers load."""
     try:
         core = importlib.metadata.version("terrascope")
     except importlib.metadata.PackageNotFoundError:
@@ -56,7 +59,14 @@ def check() -> list[str]:
             f"terrascope {core} does not know a tab's zoom_max, so it would skip the BRASIL tab: "
             "update Terrascope from its main branch, as the README says"
         )
-    for group, expected in ((TAB_GROUP, EXPECTED_TABS), (LAYER_GROUP, EXPECTED_LAYERS)):
+    if importlib.util.find_spec("terrascope.layers.weather.providers") is None:
+        # The tab loads without it; the city weather then stays on Open-Meteo.
+        problems.append(
+            f"terrascope {core} has no weather providers (terrascope.layers.weather.providers): the "
+            "tab loads, but the CGE / INMET weather is not used; update Terrascope from its main branch"
+        )
+    for group, expected in ((TAB_GROUP, EXPECTED_TABS), (LAYER_GROUP, EXPECTED_LAYERS),
+                            (PROVIDER_GROUP, EXPECTED_PROVIDERS)):
         registered = _names_registered_by_this_package(group)
         for name in expected:
             if name not in registered:

@@ -89,6 +89,26 @@ Each layer uses at most two legend lines: its title, then either its colour key 
 attention (no data yet, last update failed, or no update since a time). Credits are not repeated in the legend; they
 are in the BRASIL tab's attribution line.
 
+## City weather in Brazil
+
+The plugin registers two weather providers (core entry point `terrascope.weather_providers`), used for every city
+the core labels with its weather, on any tab:
+
+| Where | Current conditions | Forecast |
+|---|---|---|
+| municipality of São Paulo | CGE (city hall's weather centre), station at the Sé | CGE extended forecast: today and two days, with night, morning, afternoon and evening |
+| any other municipality of Brazil | Open-Meteo (no federal source gives them without a key) | INMET by IBGE code (5 days); CPTEC/INPE (7 days) when INMET fails |
+| outside Brazil | Open-Meteo | Open-Meteo |
+
+The info box shows SOURCE (for example `Open-Meteo · forecast INMET`), and the forecast title ends with the provider
+of the forecast. The CGE publishes HTML pages only; they are read by their CSS classes, so a change of layout there
+shows up as "UNAVAILABLE" and the next provider (INMET for the forecast, Open-Meteo for the conditions) answers. The
+CGE and INMET forecasts have no hourly values, so the hourly chart, rain and wind rows show no data for them.
+
+The municipality of a city is found in the IBGE outlines: the state in the national state file, then the
+municipality in that state's own `minima` file (`mun-<state>-minima.geojson`, downloaded the first time, kept for 30
+days). The CPTEC id of a municipality is looked up by name once and kept in `cptec/cptec_ids.json`.
+
 ## Home view and zoom
 
 The BRASIL tab sets `view: {lat: -14, lon: -52, zoom: 3}`, so the map opens over Brazil. The view is applied each time
@@ -151,7 +171,8 @@ and access date of every statement. Where a source publishes no terms, the docum
 the BRASIL tab attribution.
 RainViewer (global rain) and Open-Meteo (city temperatures), read by the global layers, are not covered by that
 document yet; the core shows their credits on the WEATHER tab, and the BRASIL tab attribution lists them too.
-The INMET warnings API (`apiprevmet3.inmet.gov.br`) is not covered by that document yet.
+The INMET warnings API (`apiprevmet3.inmet.gov.br`), the INMET forecast, the CGE pages (`www.cgesp.org`) and the
+CPTEC/INPE forecast (`servicos.cptec.inpe.br`) are not covered by that document yet.
 
 ## License
 
