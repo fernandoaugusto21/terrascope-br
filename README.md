@@ -24,6 +24,26 @@ When a release with plugin support is out, this line changes to that release.
 
 `pip uninstall terrascope-br` removes the tab and the layers again.
 
+### Windows: standalone build (Scoop)
+
+Each merge into `main` builds a standalone `terrascope.exe` with this plugin and the core's `main` branch, and
+publishes it as a GitHub release (`windows-<core commit>-br<plugin commit>`) with its Scoop manifest
+(`.github/workflows/build-windows.yml`). The Scoop app is `terrascope-br` (it installs `terrascope.exe`), so it does not
+clash with the core's own `terrascope` app; do not install both. To install or update the newest build:
+
+    scoop install https://github.com/fernandoaugusto21/terrascope-br/releases/latest/download/terrascope-br.json
+    scoop uninstall terrascope-br; scoop install <same address>    # to move to a newer build
+
+Only a build of the core's `main` is marked latest; a build of another core branch, tag or commit is a pre-release. The
+ten newest builds are kept.
+
+The build also runs when the core's `main` changes: right away when the core's workflow `notify-plugin.yml` has a
+token to send the signal (secret `PLUGIN_DISPATCH_TOKEN` in the core repository: a fine-grained token with
+"Contents: read and write" on this repository), and otherwise once a day, when the core's `main` has moved since the
+last build (GitHub turns scheduled workflows off after 60 days without activity in the repository; Actions shows a
+button to turn it on again). Pull requests build and check the executable without publishing it. A build can also be started by hand
+(Actions, "Windows build", with a branch, tag or commit of the core).
+
 ## Layers
 
 | Layer (`--disable-layer`) | Key | Source | Refresh | Notes |
@@ -231,7 +251,7 @@ To update the catalogue after changing texts:
     pip install -e ".[dev]"
     pytest tests
 
-The tests read trimmed samples from `tests/data` (see the README there) and do not use the network.
+The tests read trimmed samples from `tests/data` (see the README there) and do not use the network. They run on every pull request and on `main` (Ubuntu and Windows, `.github/workflows/ci.yml`), against the core's `main`.
 
 ## Sources and terms
 
