@@ -467,5 +467,7 @@ def test_a_source_with_an_overnight_part_keeps_it():
         {"part": 0, "summary": "Céu claro"}, {"part": 1, "summary": "Nublado"}]}]
     small_hours = datetime(2026, 11, 22, 4, 0, tzinfo=timezone.utc)   # 01:00 in São Paulo
     assert wp._summary_now(days, small_hours) == "Céu claro"
+    blank = [{"date": "2026-11-22", "periods": [{"part": 0, "summary": ""}, {"part": 1, "summary": "Nublado"}]}]
+    assert not wp._summary_now(blank, small_hours)                    # its own overnight part, even blank
     no_morning = [{"date": "2026-11-22", "periods": [{"part": 2, "summary": "Chuva"}]}]
     assert wp._summary_now(no_morning, small_hours) is None
