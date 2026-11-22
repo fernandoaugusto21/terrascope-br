@@ -128,7 +128,7 @@ jobs:
           dist/terrascope.exe --list-layers | tee layers.txt
           # The plugin's registered layers (the SP Águas gauges are inactive and must not be).
           for layer in br_ufs br_municipios br_fires br_quakes br_radar br_inmet_alerts br_inundation_cge \
-                       br_global_rain br_global_temp; do
+                       br_global_rain br_global_temp br_viario; do
             grep -q "^$layer" layers.txt || { echo "::error::missing layer $layer"; exit 1; }
           done
           if grep -q "^br_gauges" layers.txt; then echo "::error::br_gauges is registered"; exit 1; fi

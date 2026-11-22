@@ -2,12 +2,12 @@
 
 import importlib.metadata
 
-from terrascope_br.sources import cge, chuva_online, iag, ibge, inpe, spaguas
+from terrascope_br.sources import cge, chuva_online, iag, ibge, inpe, roads, spaguas
 from terrascope_br.tabs import brasil_tabs
 
 LAYER_NAMES = {
     "br_global_rain", "br_global_temp", "br_ufs", "br_municipios", "br_fires", "br_quakes", "br_radar",
-    "br_inmet_alerts", "br_inundation_cge",
+    "br_inmet_alerts", "br_inundation_cge", "br_viario",
 }
 
 
@@ -34,7 +34,7 @@ def test_tab_only_lists_layers_of_this_package_or_the_built_ins():
 def test_tab_attribution_credits_every_source():
     attribution = brasil_tabs()[0]["attribution"]
     for layer in (ibge.StateOutlinesLayer, ibge.MunicipalityOutlinesLayer, inpe.FireLayer,
-                  iag.QuakeLayer, chuva_online.RadarLayer, cge.CgeAlertsLayer):
+                  iag.QuakeLayer, chuva_online.RadarLayer, cge.CgeAlertsLayer, roads.RoadsLayer):
         assert layer.credit in attribution
     assert "USGS" in attribution  # the earthquake fallback feed
 

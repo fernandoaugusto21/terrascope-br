@@ -1,0 +1,99 @@
+name: Road file
+
+# The road network of the BRASIL tab (br_viario): packaging/roads/build_roads.py reads the
+# roads of the Greater São Paulo box from the Geofabrik extract of the South-East of Brazil
+# (© OpenStreetMap contributors, ODbL 1.0) and writes the file that the plugin downloads. It is published as an asset of
+# a release named roads-<UTC time>, which is never the "latest" release (the Scoop
+# manifest of the Windows build uses "latest"). The plugin takes the newest release that
+# has the asset.
+
+on:
+  schedule:
+    - cron: "41 5 * * 1"          # weekly, Monday
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "packaging/roads/**"
+      - "src/terrascope_br/roads_format.py"
+      - ".github/workflows/build-roads.yml"
+
+# One build at a time; a running build is not cancelled.
+concurrency:
+  group: roads-build
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  KEEP_RELEASES: 2
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install numpy and pyosmium (the generator only)
+        run: python -m pip install numpy osmium
+
+      - name: Download the Geofabrik extract of the South-East
+        run: |
+          mkdir -p out
+          curl -fsSL --retry 3 -o out/sudeste-latest.osm.pbf \
+            https://download.geofabrik.de/south-america/brazil/sudeste-latest.osm.pbf
+
+      - name: Build the road file
+        run: |
+          python packaging/roads/build_roads.py --source pbf --pbf out/sudeste-latest.osm.pbf \
+            --out out/br-viario-rmsp.npz | tee out/build.log
+
+      - name: Check the file
+        run: |
+          python -c "
+          import sys
+          sys.path.insert(0, 'src')
+          from terrascope_br import roads_format
+          meta = roads_format.check('out/br-viario-rmsp.npz')
+          print('built', meta['built'], 'ways', meta['stats']['ways'])
+          "
+          ls -l out/br-viario-rmsp.npz
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          tag="roads-$(date -u +%Y%m%d-%H%M)"
+          {
+            echo "Road network of the BRASIL tab (br_viario): the roads of the Greater São Paulo box, from OpenStreetMap."
+            echo
+            echo "© OpenStreetMap contributors. The data is available under the Open Database License (ODbL) 1.0: https://www.openstreetmap.org/copyright"
+            echo
+            echo "The plugin downloads this file (the newest release that has it) and keeps it in its cache."
+            echo
+            echo '```'
+            grep -E '^(read|wrote)' out/build.log || true
+            echo '```'
+          } > out/notes.md
+          gh release create "$tag" out/br-viario-rmsp.npz --repo "$REPO" --target "${{ github.sha }}" \
+            --latest=false --title "Road network $tag" --notes-file out/notes.md
+
+      - name: Keep the newest road releases only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh release list --repo "$REPO" --limit 200 --json tagName,createdAt \
+            --jq '[.[] | select(.tagName | startswith("roads-"))] | sort_by(.createdAt) | reverse | .[env.KEEP_RELEASES | tonumber:] | .[].tagName' |
+          while read -r old; do
+            gh release delete "$old" --repo "$REPO" --cleanup-tag --yes
+          done

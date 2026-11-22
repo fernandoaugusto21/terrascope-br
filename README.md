@@ -62,6 +62,7 @@ button to turn it on again). Pull requests build and check the executable withou
 | `br_global_temp` | M | city temperatures (the core's city layer, with the providers below), cities of Brazil only | 15 min per city | relative colours, as on the WEATHER tab; labels replace the basemap city names in this tab; from zoom 32 on, one label per municipality (see below) |
 | `br_inmet_alerts` | V | INMET, active weather warnings | 30 min | warnings of today and the next days, as areas; hidden when the data is over 1 h old |
 | `br_inundation_cge` | (legend switch) | CGE, flood-risk state of each of the 32 subprefeituras of the city of São Paulo; outlines from GeoSampa | 5 min (outlines: 30 days) | from zoom 16 on; watch / attention / overflow imminent / alert, read from the colours of the CGE alert map (see below); states hidden when over 1 h old |
+| `br_viario` | (legend switch) | OpenStreetMap roads of the Greater São Paulo box (ODbL), a file built weekly and published as a release asset | once a week at most; kept for offline use | off when the tab opens; from zoom 16 motorways and trunk roads, 64 primary and secondary, 256 tertiary, 512 local streets; one colour per class (see below) |
 
 The SP Águas rain gauge layer (`br_gauges`) is inactive since 2026-11-22: it is not registered and makes no request.
 Its code stays in `sources/spaguas.py` for later use (`ENABLED`).
@@ -111,6 +112,22 @@ The INMET layer draws the area of each active warning, filled with the warning's
 severity. A warning that appears in both lists of the API (today and the next days) is drawn once. Warnings with no
 area are left out. The API gives the start and end times without a time zone; they are shown as they come.
 
+### Road network (OpenStreetMap)
+
+The `br_viario` layer draws the roads of the Região Metropolitana de São Paulo, from OpenStreetMap (© OpenStreetMap
+contributors, ODbL 1.0). It is off when the tab opens: its own switch is on the legend's first line. Only the roads in
+view are drawn, one colour per class.
+
+The plugin does not read OpenStreetMap itself. `packaging/roads/build_roads.py` reads the roads from the Overpass API
+(tiles of the box; `--source pbf` reads a local Geofabrik extract instead) and writes `br-viario-rmsp.npz` (format in
+`src/terrascope_br/roads_format.py`). The Windows workflow does not build it: `.github/workflows/build-roads.yml`
+builds it weekly and publishes it as a release named `roads-<time>`, marked as not the latest release. The layer
+downloads the file from the newest release that has it, the first time it is switched on, and checks for a newer one
+once a week. Offline, the cached file is used.
+
+To build it by hand (with numpy installed): `python packaging/roads/build_roads.py --out out/br-viario-rmsp.npz`.
+Measurements of the file and of the layer's cost: [`docs/performance-viario.md`](docs/performance-viario.md).
+
 ### CGE flood risk by region
 
 The CGE publishes the state of each subprefeitura of the city of São Paulo only as a picture: the page
@@ -142,6 +159,8 @@ By region, the layer also shows:
 Each layer uses at most two legend lines: its title, then either its colour key or one message when the data needs
 attention (no data yet, last update failed, or no update since a time). Credits are not repeated in the legend; they
 are in the BRASIL tab's attribution line.
+
+The road layer (`br_viario`) wraps its six classes onto three rows of two, so it uses four lines.
 
 ## City weather in Brazil
 
