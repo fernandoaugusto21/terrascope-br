@@ -62,6 +62,7 @@ iniciado à mão (Actions, "Windows build", com uma branch, tag ou commit do cor
 | `br_global_temp` | M | temperaturas das cidades (a camada de cidades do core, com os provedores abaixo), só cidades do Brasil | 15 min por cidade | cores relativas, como na aba CLIMA; nesta aba os rótulos substituem os nomes de cidades do mapa base; a partir do zoom 32, um rótulo por município (veja abaixo) |
 | `br_inmet_alerts` | V | INMET, avisos meteorológicos ativos | 30 min | avisos de hoje e dos próximos dias, como áreas; oculta quando os dados têm mais de 1 h |
 | `br_inundation_cge` | (chave na legenda) | CGE, estado de risco de alagamento de cada uma das 32 subprefeituras da cidade de São Paulo; contornos do GeoSampa | 5 min (contornos: 30 dias) | a partir do zoom 16; observação / atenção / iminência de transbordamento / alerta, lidos das cores do mapa de alertas do CGE (veja abaixo); estados ocultos quando têm mais de 1 h |
+| `br_viario` | (chave na legenda) | vias do OpenStreetMap dos 39 municípios da Região Metropolitana de São Paulo (ODbL), um arquivo gerado toda semana e publicado como asset de uma release | no máximo uma vez por semana; guardado para uso offline | desligada ao abrir a aba; a partir do zoom 16 autopistas e vias expressas, 64 vias primárias e secundárias, 256 terciárias, 512 ruas locais; uma cor por classe (veja abaixo) |
 
 A camada de pluviômetros da SP Águas (`br_gauges`) está inativa desde 22/11/2026: ela não é registrada e não faz
 nenhuma requisição. O código continua em `sources/spaguas.py` para uso futuro (`ENABLED`).
@@ -113,6 +114,25 @@ A camada do INMET desenha a área de cada aviso ativo, preenchida com a cor do p
 marcador `!` no meio do retângulo da área. A legenda tem uma entrada por cor presente nos dados, rotulada com a sua
 gravidade. Um aviso que aparece nas duas listas da API (hoje e próximos dias) é desenhado uma vez só. Avisos sem área
 ficam de fora. A API informa os horários de início e fim sem fuso horário; eles são mostrados como chegam.
+
+### Viário (OpenStreetMap)
+
+A camada `br_viario` desenha as vias da Região Metropolitana de São Paulo, do OpenStreetMap (© OpenStreetMap
+contributors, ODbL 1.0). Ela fica desligada quando a aba abre: o seu interruptor está na primeira linha da legenda. Só as
+vias da vista são desenhadas, uma cor por classe. Com um core que tem `LayerRender.line_layers`, as vias ficam abaixo dos
+contornos do IBGE (um core mais antigo as desenha por cima, como marcadores).
+
+O plugin não lê o OpenStreetMap diretamente. O `packaging/roads/build_roads.py` lê as vias de um extrato da Geofabrik
+(`--source pbf`; a Overpass API é uma reserva lenta), mantém as que têm um nó dentro de um dos 39 municípios da RMSP
+(`--area rmsp`, pela malha municipal do IBGE; `--area box` mantém um retângulo) e grava `br-viario-rmsp.npz` (formato em
+`src/terrascope_br/roads_format.py`). O workflow do Windows não o gera: o `.github/workflows/build-roads.yml` o gera
+toda semana e o publica numa release chamada `roads-<hora>`, marcada como não sendo a mais recente. A camada baixa o
+arquivo da release mais nova que o tem, na primeira vez em que é ligada, e procura um mais novo uma vez por semana.
+Offline, usa o arquivo do cache.
+
+Para gerá-lo à mão (com numpy e osmium instalados): `python packaging/roads/build_roads.py --source pbf --pbf
+sudeste-latest.osm.pbf --out out/br-viario-rmsp.npz`. Medidas do arquivo e do custo da camada:
+[`docs/performance-viario.md`](docs/performance-viario.md).
 
 ### Risco de alagamento do CGE por região
 

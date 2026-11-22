@@ -1,7 +1,7 @@
 name: Road file
 
 # The road network of the BRASIL tab (br_viario): packaging/roads/build_roads.py reads the
-# roads of the Greater São Paulo box from the Geofabrik extract of the South-East of Brazil
+# roads of the 39 municipalities of the RMSP (IBGE municipal mesh) from the Geofabrik extract of the South-East of Brazil
 # (© OpenStreetMap contributors, ODbL 1.0) and writes the file that the plugin downloads. It is published as an asset of
 # a release named roads-<UTC time>, which is never the "latest" release (the Scoop
 # manifest of the Windows build uses "latest"). The plugin takes the newest release that
@@ -74,7 +74,7 @@ jobs:
         run: |
           tag="roads-$(date -u +%Y%m%d-%H%M)"
           {
-            echo "Road network of the BRASIL tab (br_viario): the roads of the Greater São Paulo box, from OpenStreetMap."
+            echo "Road network of the BRASIL tab (br_viario): the roads of the 39 municipalities of the Região Metropolitana de São Paulo, from OpenStreetMap (outlines: IBGE)."
             echo
             echo "© OpenStreetMap contributors. The data is available under the Open Database License (ODbL) 1.0: https://www.openstreetmap.org/copyright"
             echo

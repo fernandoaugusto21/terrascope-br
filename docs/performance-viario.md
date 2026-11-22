@@ -15,7 +15,10 @@ process-tree memory of the build (psutil).
 | Peak memory of the build (process tree, RSS) | 3,215 MiB |
 | Source | Geofabrik sudeste extract, OpenStreetMap, ODbL |
 
-Roads kept: every way of the classes with a node in the box (`-47.21 -24.06 -45.69 -23.18`).
+Roads kept: every way of the classes with a node in the box (`-47.21 -24.06 -45.69 -23.18`). Since the generator
+keeps only the roads with a node inside one of the 39 municipalities of the RMSP (`--area rmsp`, the default), the
+file is smaller: 225,482 of the 282,620 roads of the box (the same extract), 4.78 MiB, built in 110 s (read and clip
+96.8 s). The tables below are of the box file.
 Ways and points before simplification, and the points kept per zoom range after it (range 0 = zoom 16-64,
 1 = 64-256, 2 = 256-512, 3 = 512-1024; the tolerance is half a braille dot at the range's finest zoom):
 

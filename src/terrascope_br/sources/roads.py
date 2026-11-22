@@ -1,4 +1,4 @@
-"""Road network of the Greater São Paulo box (br_viario), from OpenStreetMap.
+"""Road network of the Região Metropolitana de São Paulo (br_viario), from OpenStreetMap.
 
 The file is built ahead of time by packaging/roads/build_roads.py and published as an
 asset of a GitHub release (format: terrascope_br.roads_format). The layer downloads it
@@ -10,8 +10,9 @@ primary and secondary from 64, tertiary from 256, local streets (residential,
 unclassified, living street) from 512. Only the roads inside the view are drawn: each
 class is rasterised on the braille grid of the view, and a cell that holds roads of two
 classes shows the first one (the higher class, the order of CLASSES). Each class has its
-own colour: the cells are braille markers, because a layer's own lines have one colour. Markers are
-drawn after every layer's lines, so the roads sit above the IBGE outlines (accepted; see _markers_for).
+own colour: with a core that has LayerRender.line_layers, one set of braille lines per class,
+drawn in this layer's turn, so the IBGE outlines (after it in the tab) cover them. With an
+older core, braille markers (drawn after every layer's lines, so above the outlines).
 
 The layer is off when the tab opens (its own switch in the legend, the "on | off" line).
 It draws nothing, and downloads nothing, while it is off.
@@ -32,6 +33,9 @@ from terrascope_br.base import SourceLayer, key
 from terrascope_br.geo import view_key
 from terrascope_br.net import SourceError, get
 from terrascope_br.roads_format import RoadFile
+
+# The core draws several line colours per layer from the version that added LayerRender.line_layers.
+_LINE_LAYERS = "line_layers" in getattr(LayerRender, "__dataclass_fields__", {})
 
 REPO = "fernandoaugusto21/terrascope-br"
 # The Windows build keeps ten releases of its own and publishes more often than the weekly
@@ -93,7 +97,7 @@ class RoadsLayer(SourceLayer):
         self._road: RoadFile | None = None
         self._prepared: dict[tuple[str, int], tuple] = {}
         self._frame_key = None
-        self._markers: list[Marker] = []
+        self._render = LayerRender(None, COLOURS["residential"])
 
     # -- download and cache -------------------------------------------------------------
     def stamp_file(self):
@@ -132,14 +136,14 @@ class RoadsLayer(SourceLayer):
         self.items = []                          # the arrays live in self._road, read as drawn
         self._prepared = {}
         self._frame_key = None
-        self._markers = []
+        self._render = LayerRender(None, COLOURS["residential"])
 
     def clear(self) -> None:
         super().clear()
         self._road = None
         self._prepared = {}
         self._frame_key = None
-        self._markers = []
+        self._render = LayerRender(None, COLOURS["residential"])
 
     # -- drawing ------------------------------------------------------------------------
     def _prepare(self, name: str, index: int):
@@ -186,7 +190,8 @@ class RoadsLayer(SourceLayer):
             dy = (lat0 - degrees[seg + 1, 1]) * view.scale_y - ya
             samples = np.ceil(np.maximum(np.abs(dx), np.abs(dy))).astype(np.int64) + 1
             owner = np.repeat(np.arange(len(seg)), samples)
-            step = (np.arange(samples.sum()) - np.repeat(np.cumsum(samples) - samples, samples))                 / np.maximum(samples - 1, 1)[owner]
+            starts = np.repeat(np.cumsum(samples) - samples, samples)
+            step = (np.arange(samples.sum()) - starts) / np.maximum(samples - 1, 1)[owner]
             xs = np.floor(xa[owner] + dx[owner] * step).astype(np.int64)
             ys = np.floor(ya[owner] + dy[owner] * step).astype(np.int64)
             inside = (xs >= 0) & (xs < view.pixel_width) & (ys >= 0) & (ys < view.pixel_height)
@@ -194,39 +199,48 @@ class RoadsLayer(SourceLayer):
         dots = pixels.reshape(view.height, 4, view.width, 2)
         return (dots * BRAILLE_BIT_WEIGHTS[np.newaxis, :, np.newaxis, :]).sum(axis=(1, 3))
 
-    def _markers_for(self, view: View) -> list[Marker]:
-        # Why markers and not lines: the core draws a layer's braille lines in ONE colour
-        # (LayerRender.line_color), and draws every layer's markers after all lines. A
-        # colour per class therefore needs one marker per braille cell. The consequence,
-        # accepted: the roads are drawn above the IBGE outlines, not below them.
+    def _cells_for(self, view: View):
+        """(class names, braille value of each cell, rank of the class that owns it, -1 for
+        none) of the view. A cell crossed by several classes keeps the top class's dots."""
         zoom = min(max(view.zoom, roads_format.LOD_ZOOMS[0]), roads_format.LOD_ZOOMS[-1])
         names = roads_format.classes_at(view.zoom)
         index = roads_format.range_index(zoom)
-        if self._road is None or not names or index is None:
-            return []
         chosen = np.zeros((view.height, view.width), dtype=np.int64)
         owner = np.full((view.height, view.width), -1, dtype=np.int64)
-        taken = np.zeros((view.height, view.width), dtype=bool)
-        for rank, name in enumerate(names):   # top class first: a cell keeps the first class's dots
+        if self._road is None or not names or index is None:
+            return [], chosen, owner
+        for rank, name in enumerate(names):   # top class first
             values = self._rasterize(view, name, index)
-            free = (values > 0) & ~taken
+            free = (values > 0) & (owner < 0)
             chosen[free] = values[free]
             owner[free] = rank
-            taken |= free
-        markers = []
-        for y, x in zip(*np.nonzero(taken)):
-            colour = COLOURS[names[owner[y, x]]]
-            markers.append(Marker(x=int(x), y=int(y), color=colour, glyph=chr(0x2800 + int(chosen[y, x]))))
-        return markers
+        return names, chosen, owner
+
+    def _render_for(self, view: View) -> LayerRender:
+        names, chosen, owner = self._cells_for(view)
+        if _LINE_LAYERS:
+            # One set of braille lines per class, each in its colour, drawn in this layer's
+            # turn: the IBGE outlines (listed after this layer in the tab) cover them.
+            layers = []
+            for rank, name in enumerate(names):
+                cells = np.where(owner == rank, 0x2800 + chosen, 0x2800)
+                if (owner == rank).any():
+                    layers.append((["".join(map(chr, row)) for row in cells.tolist()], COLOURS[name]))
+            return LayerRender(None, COLOURS["residential"], line_layers=layers)
+        # An older core draws a layer's lines in one colour, and markers after every layer's
+        # lines: one marker per cell, so the roads sit above the IBGE outlines there.
+        markers = [Marker(x=int(x), y=int(y), color=COLOURS[names[owner[y, x]]], glyph=chr(0x2800 + int(chosen[y, x])))
+                   for y, x in zip(*np.nonzero(owner >= 0))]
+        return LayerRender(None, COLOURS["residential"], markers=markers)
 
     def build(self, view: View):
         if self._road is None:
             return LayerRender(None, COLOURS["residential"])
         key_ = view_key(view)
         if key_ != self._frame_key:
-            self._markers = self._markers_for(view)
+            self._render = self._render_for(view)
             self._frame_key = key_
-        return LayerRender(None, COLOURS["residential"], markers=self._markers)
+        return self._render
 
     def hit_test_all(self, x: int, y: int, radius: float | None = None):
         return []                                # the roads have no items to select
