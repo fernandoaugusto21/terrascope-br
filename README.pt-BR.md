@@ -71,6 +71,12 @@ Os nomes dos municípios (rótulos de clima e provedores) vêm da lista de local
 
 ### Histórico do radar
 
+Cada quadro é desenhado como o core desenha o seu radar do clima: a cor de cada pixel é uma faixa da própria barra de
+cores do quadro (faixas de 1 dBZ, de 10 a 60), e cada célula do terminal tem duas leituras, a metade de cima e a de
+baixo, cada uma a faixa média de 3 x 3 pontos do quadro (desenhada onde ao menos metade deles tem chuva), na cor dessa
+faixa. Uma célula com metades diferentes é um meio bloco (▀ / ▄); uma com metades iguais é uma cor de fundo, e os
+contornos e nomes ficam por cima.
+
 O site do Chuva Online serve só os seus últimos dez quadros, em dez arquivos que são regravados à medida que chegam
 quadros novos (sem arquivo histórico). A camada guarda todos os quadros que vê na última hora, e o seu deslizador os
 percorre, como o deslizador de radar do core (`[` e `]`, ou o mouse na linha do deslizador; o quadro mais recente é a

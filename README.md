@@ -71,6 +71,11 @@ The municipality names (weather labels and providers) come from the IBGE localit
 
 ### Radar history
 
+Each frame is drawn as the core draws its weather radar: every pixel's colour is a band of the frame's own colour bar
+(1 dBZ bands from 10 to 60), and each terminal cell has two readings, top and bottom half, each the mean band of 3 x 3
+points of the frame (drawn where at least half of them have rain), in the colour of that band. A cell whose halves
+differ is a half block (▀ / ▄); a cell whose halves agree is a background colour, so outlines and names stay on top.
+
 The Chuva Online site serves only its last ten frames, as ten files that are rewritten as new frames come (no archive).
 The layer keeps every frame it sees in the last hour and its slider steps through them, as the core's radar slider
 does (`[` and `]`, or the mouse on the slider row; the newest frame is the `LIVE` position). The loop uses the core's

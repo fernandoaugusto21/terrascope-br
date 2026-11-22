@@ -30,7 +30,7 @@ import numpy as np
 from PIL import Image
 
 from terrascope.core import config
-from terrascope.core.layer import LayerRender, SliderSpec
+from terrascope.core.layer import LayerRender, Marker, SliderSpec
 from terrascope.core.view import View
 
 from terrascope_br import store
@@ -58,8 +58,33 @@ DISC_RADIUS = 436.0
 # Precipitation colours are saturated; grey and black are borders, text and the bar.
 MIN_SATURATION = 60
 STALE_SECONDS = 30 * 60
+# The colour bar of the frames ("Z(dBZ)", right of the disc): 50 bands of 1 dBZ, from 10-11
+# (dark blue) up to 59-60 (pink), read from a frame of 2026-11-22 (column 995, rows 200-690).
+# Every precipitation colour inside the disc is one of them, so a pixel's colour gives its dBZ.
+PALETTE = (
+    (1, 11, 129), (1, 21, 143), (1, 30, 157), (1, 40, 171), (0, 55, 255),
+    (0, 59, 199), (0, 69, 213), (0, 78, 227), (0, 88, 241), (0, 149, 255),
+    (0, 81, 0), (0, 93, 0), (0, 105, 0), (0, 118, 0), (0, 95, 0),
+    (0, 143, 0), (0, 155, 0), (0, 168, 0), (0, 180, 0), (34, 160, 34),
+    (0, 205, 0), (0, 217, 0), (0, 230, 0), (0, 242, 0), (35, 255, 0),
+    (255, 127, 40), (255, 140, 42), (255, 156, 43), (255, 171, 44), (182, 97, 0),
+    (255, 206, 47), (255, 212, 35), (255, 218, 23), (255, 224, 11), (255, 144, 0),
+    (142, 0, 0), (154, 0, 0), (167, 0, 0), (179, 0, 0), (192, 0, 0),
+    (204, 0, 0), (217, 0, 0), (229, 0, 0), (242, 0, 0), (255, 0, 0),
+    (255, 0, 139), (255, 28, 151), (255, 56, 164), (255, 85, 177), (255, 113, 190),
+)
+PALETTE_HEX = tuple(f"#{r:02x}{g:02x}{b:02x}" for r, g, b in PALETTE)
+_PALETTE_CODES = np.array([(r << 16) | (g << 8) | b for r, g, b in PALETTE], dtype=np.int64)
+_PALETTE_ORDER = np.argsort(_PALETTE_CODES)
+# Each half terminal cell is read from SUPERSAMPLE x SUPERSAMPLE points of the frame, as the
+# core's weather radar does: it is drawn when at least MIN_COVERAGE of them have rain, in the
+# colour of their mean level. Half blocks give two readings per cell, top and bottom.
+SUPERSAMPLE = 3
+MIN_COVERAGE = 0.5
+HALF_BLOCK_UPPER = "\u2580"   # ▀
+HALF_BLOCK_LOWER = "\u2584"   # ▄
 
-_decoded: OrderedDict[str, tuple[np.ndarray, np.ndarray]] = OrderedDict()
+_decoded: OrderedDict[str, tuple[np.ndarray, np.ndarray, np.ndarray]] = OrderedDict()
 
 def decode_frame(png: bytes) -> tuple[np.ndarray, np.ndarray]:
     """(rgb, mask) of a frame. mask is True where precipitation is drawn."""
@@ -72,9 +97,72 @@ def decode_frame(png: bytes) -> tuple[np.ndarray, np.ndarray]:
     mask = (rgba[:, :, 3] > 0) & (spread >= MIN_SATURATION) & inside
     return rgb, mask
 
-def frame_arrays(file: Path) -> tuple[np.ndarray, np.ndarray] | None:
-    """(rgb, mask) of a stored frame, or None when it cannot be read. Decoding takes
-    a few tens of milliseconds, so the last DECODED_FRAMES are kept."""
+def frame_levels(rgb: np.ndarray, mask: np.ndarray) -> np.ndarray:
+    """Band of every pixel (uint8): 0 where no rain is drawn, else 1 (10-11 dBZ) to 50
+    (59-60 dBZ), by its colour in PALETTE. A drawn colour that is not in it counts as none."""
+    codes = (rgb[:, :, 0].astype(np.int64) << 16) | (rgb[:, :, 1].astype(np.int64) << 8) | rgb[:, :, 2]
+    sorted_codes = _PALETTE_CODES[_PALETTE_ORDER]
+    index = np.clip(np.searchsorted(sorted_codes, codes), 0, len(sorted_codes) - 1)
+    known = (sorted_codes[index] == codes) & mask
+    return np.where(known, _PALETTE_ORDER[index] + 1, 0).astype(np.uint8)
+
+
+def half_cell_levels(levels: np.ndarray, view: View, supersample: int = SUPERSAMPLE) -> np.ndarray:
+    """Band (0 = none) of every HALF terminal cell of the view, shape (2 * height, width):
+    row 2*y is the top half of row y, 2*y + 1 its bottom half. Each is read from
+    supersample x supersample points laid on the view's own grid; it has rain when at
+    least MIN_COVERAGE of the points that fall on the frame have rain, and then the
+    rounded mean band of those points."""
+    min_lon, min_lat, max_lon, max_lat = BBOX
+    height, width = levels.shape
+    columns = view.width * supersample
+    rows = view.height * 2 * supersample
+    lons = view.origin_lon + (np.arange(columns) + 0.5) / columns * view.lon_span
+    lons = (lons + 180.0) % 360.0 - 180.0   # a view across the antimeridian (see cell_colours)
+    lats = view.origin_lat - (np.arange(rows) + 0.5) / rows * view.lat_span
+    px = np.floor((lons - min_lon) / (max_lon - min_lon) * width).astype(np.int64)
+    py = np.floor((max_lat - lats) / (max_lat - min_lat) * height).astype(np.int64)
+    inside_x, inside_y = (px >= 0) & (px < width), (py >= 0) & (py < height)
+    if not inside_x.any() or not inside_y.any():
+        return np.zeros((view.height * 2, view.width), dtype=np.int64)
+    samples = levels[np.clip(py, 0, height - 1)[:, None], np.clip(px, 0, width - 1)[None, :]].astype(np.float32)
+    samples[~inside_y, :] = 0
+    samples[:, ~inside_x] = 0
+    shape = (view.height * 2, supersample, view.width, supersample)
+    rain = (samples > 0).reshape(shape).sum(axis=(1, 3))
+    total = samples.reshape(shape).sum(axis=(1, 3))
+    count = supersample * supersample
+    mean = np.divide(total, rain, out=np.zeros_like(total), where=rain > 0)
+    return np.where(rain >= MIN_COVERAGE * count, np.rint(mean), 0).astype(np.int64)
+
+
+def radar_render(levels: np.ndarray, view: View) -> LayerRender:
+    """The frame on the view: a cell whose two halves have the same band is a background
+    colour (outlines and names stay drawn over it); a cell whose halves differ is a half
+    block, top band as the glyph's colour and bottom band as its background (or the map's,
+    when that half is dry)."""
+    halves = half_cell_levels(levels, view)
+    top, bottom = halves[0::2], halves[1::2]
+    bg_cells: dict[tuple[int, int], str] = {}
+    markers: list[Marker] = []
+    for y, x in zip(*np.nonzero((top > 0) | (bottom > 0))):
+        high, low = int(top[y, x]), int(bottom[y, x])
+        x, y = int(x), int(y)
+        if high == low:
+            bg_cells[(x, y)] = PALETTE_HEX[high - 1]
+        elif high and low:
+            markers.append(Marker(x=x, y=y, color=PALETTE_HEX[high - 1], bg_color=PALETTE_HEX[low - 1],
+                                  glyph=HALF_BLOCK_UPPER))
+        elif high:
+            markers.append(Marker(x=x, y=y, color=PALETTE_HEX[high - 1], glyph=HALF_BLOCK_UPPER))
+        else:
+            markers.append(Marker(x=x, y=y, color=PALETTE_HEX[low - 1], glyph=HALF_BLOCK_LOWER))
+    return LayerRender(None, "#000000", markers=markers, bg_cells=bg_cells)
+
+
+def frame_arrays(file: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+    """(rgb, mask, levels) of a stored frame (see frame_levels), or None when it cannot be
+    read. Decoding takes a few tens of milliseconds, so the last DECODED_FRAMES are kept."""
     name = str(file)
     if name in _decoded:
         _decoded.move_to_end(name)
@@ -83,9 +171,10 @@ def frame_arrays(file: Path) -> tuple[np.ndarray, np.ndarray] | None:
     if data is None:
         return None
     try:
-        arrays = decode_frame(data)
+        rgb, mask = decode_frame(data)
     except (OSError, ValueError):  # not an image, or cut short
         return None
+    arrays = (rgb, mask, frame_levels(rgb, mask))
     _decoded[name] = arrays
     while len(_decoded) > DECODED_FRAMES:
         _decoded.popitem(last=False)
@@ -309,6 +398,9 @@ class RadarLayer(SourceLayer):
 
     # -- drawing and legend --------------------------------------------------------------
 
+    def hit_test_all(self, x: int, y: int, radius: float | None = None):
+        return []   # the half-block cells are an overlay, not items to select
+
     def build(self, view: View) -> LayerRender:
         if not self.items or self.data_time is None:
             return LayerRender(None, "#000000")
@@ -317,8 +409,7 @@ class RadarLayer(SourceLayer):
         arrays = frame_arrays(self.items[self._shown_index()]["file"])
         if arrays is None:
             return LayerRender(None, "#000000")
-        rgb, mask = arrays
-        return LayerRender(None, "#000000", bg_cells=cell_colours(rgb, mask, view))
+        return radar_render(arrays[2], view)
 
     def legend_key(self):
         return key(
