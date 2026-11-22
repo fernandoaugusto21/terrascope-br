@@ -142,17 +142,33 @@ def parse_alerts(payload: bytes) -> list[dict]:
             alerts.append(alert)
     return alerts
 
+EDGE_CHUNK_CELLS = 1 << 21          # edges x grid points tested at once (bounds the temporary arrays)
+
 def _inside_ring(lon: np.ndarray, lat: np.ndarray, points: np.ndarray) -> np.ndarray:
-    """Crossing-number test of every grid point against one ring, one edge at a time."""
+    """Crossing-number test of every grid point against one ring. Only the points inside
+    the ring's bounding box can be inside it (a point outside crosses its edges an even
+    number of times), and the edges are tested in blocks, not one at a time."""
     inside = np.zeros(lon.shape, dtype=bool)
     x0, y0 = points[:, 0], points[:, 1]
     x1, y1 = np.roll(x0, -1), np.roll(y0, -1)
-    for xa, ya, xb, yb in zip(x0.tolist(), y0.tolist(), x1.tolist(), y1.tolist()):
-        if ya == yb:
-            continue
-        crosses = (ya > lat) != (yb > lat)
-        x_at = (xb - xa) * (lat - ya) / (yb - ya) + xa
-        inside ^= crosses & (lon < x_at)
+    sloped = y0 != y1
+    x0, y0, x1, y1 = x0[sloped], y0[sloped], x1[sloped], y1[sloped]
+    if not len(x0):
+        return inside
+    box = ((lon >= points[:, 0].min()) & (lon <= points[:, 0].max())
+           & (lat >= points[:, 1].min()) & (lat <= points[:, 1].max()))
+    px, py = lon[box], lat[box]
+    if not len(px):
+        return inside
+    odd = np.zeros(px.shape, dtype=bool)
+    step = max(1, EDGE_CHUNK_CELLS // len(px))
+    for start in range(0, len(x0), step):
+        xa, ya = x0[start:start + step, None], y0[start:start + step, None]
+        xb, yb = x1[start:start + step, None], y1[start:start + step, None]
+        crosses = (ya > py) != (yb > py)
+        x_at = (xb - xa) * (py - ya) / (yb - ya) + xa
+        odd ^= np.logical_xor.reduce(crosses & (px < x_at), axis=0)
+    inside[box] = odd
     return inside
 
 def warning_cells(alerts: list[dict], view: View, land: np.ndarray | None = None) -> dict[tuple[int, int], str]:

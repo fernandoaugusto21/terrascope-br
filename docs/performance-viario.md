@@ -39,17 +39,34 @@ map area), with the file already read and the arrays of the zoom's ranges alread
 
 | Zoom | Classes drawn | Build, median | Build, slowest | Markers (cells) | Python heap peak of one build |
 |---:|---|---:|---:|---:|---:|
-| 16 | motorway, trunk | 47.8 ms | 54.4 ms | 91 | 0.43 MB |
-| 64 | + primary, secondary | 190.4 ms | 198.1 ms | 981 | 1.15 MB |
-| 256 | + tertiary | 200.8 ms | 208.1 ms | 4,179 | 1.10 MB |
-| 512 | + local streets | 327.4 ms | 356.8 ms | 5,914 | 2.71 MB |
-| 1024 | all (the tab's limit) | 106.7 ms | 128.4 ms | 6,062 | 1.53 MB |
+| 16 | motorway, trunk | 2.1 ms | 3.8 ms | 91 | 1.18 MB |
+| 64 | + primary, secondary | 6.2 ms | 10.9 ms | 982 | 3.37 MB |
+| 256 | + tertiary | 10.4 ms | 17.9 ms | 4,191 | 2.92 MB |
+| 512 | + local streets | 19.1 ms | 48.6 ms | 5,913 | 10.79 MB |
+| 1024 | all (the tab's limit) | 11.5 ms | 41.5 ms | 6,058 | 3.71 MB |
 
-The build time is the rasterisation of the visible polylines on the Python side (one `ImageDraw.line` per
-polyline) plus the composition of the classes and the marker objects. It is paid once per view change, not
-once per frame. A pan or a zoom step therefore costs about 0.1 to 0.35 s of build on this machine, which the
-screen shows as a short pause. The markers are then drawn by the core, one cell each; that drawing is not
-measured here (it needs a terminal; see the screenshots in the pull request).
+The build rasterises every segment of a class in view at once with numpy (each segment sampled at least
+once per pixel along its longer axis). The first version drew one `ImageDraw.line` per polyline and took
+48 / 190 / 201 / 327 / 107 ms at the same zooms, mostly in the Python loop over tens of thousands of short
+polylines; the cells it lit are the same in 98 to 100 % of the view, the rest differ by a dot. The build is
+paid once per view change, not once per frame; the markers are then drawn by the core, one cell each.
+
+### In the running application
+
+Measured in the application itself (BRASIL tab, 130 x 45 terminal, over São Paulo, panning and zooming from
+64 to 729, live data: CGE regions with their state fill, INMET warnings, Chuva Online radar, global rain and
+temperatures), timing each map render and each frame drawn:
+
+| Per pan or zoom step | Before | After |
+|---|---:|---:|
+| Map render, road layer off | 100 to 130 ms (CGE fill 85 to 110 ms) | 10 to 30 ms |
+| Map render, road layer on | 290 to 335 ms | 25 to 40 ms |
+| Whole frame (render and terminal output), road layer on | 300 to 390 ms | 60 to 120 ms |
+
+The CGE regions and the INMET warnings share the test of which cells lie inside an area
+(`inmet._inside_ring`); it now tests only the cells in each ring's bounding box, many edges at once, with
+the same arithmetic as before (a test compares the two). What is left of a frame is mostly the terminal
+output (`curses` refresh), in the core.
 
 ## Memory
 
@@ -66,10 +83,10 @@ prepared classes stay in memory for the session: about 40 MB of the RSS above.
 
 - One machine, one file, one view size (108 x 58 cells). Other terminal sizes change the number of cells
   rasterised but not the order of magnitude.
-- The build time per view change (0.1 to 0.35 s) is the main cost. A follow-up can cache the rasterised classes
-  per tile, or vectorise the line drawing; it is not done in this change.
+- The build per view change is now 2 to 20 ms (median); the line drawing is vectorised. The rest of a frame is the
+  terminal output.
 - The memory of the build itself (3.2 GB peak) is that of the generator on the full South-East extract, not of the
-  plugin. The GitHub runner has 7 GB; the weekly workflow is not yet confirmed to finish there.
+  plugin. The weekly workflow finished on a GitHub runner (7 GB) on 2026-11-22, in 89 s.
 - The overpass route is not measured for CI: its public servers returned 502 and dropped connections during the
   tests, so it is only a slow fallback.
 
