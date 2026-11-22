@@ -40,6 +40,7 @@ jobs:
     runs-on: windows-latest
     outputs:
       tag: ${{ steps.names.outputs.tag }}
+      core_sha: ${{ steps.names.outputs.core_sha }}
       skip: ${{ steps.names.outputs.skip }}
       latest: ${{ steps.names.outputs.latest }}
     defaults:
@@ -163,6 +164,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: read   # the titles of the merged pull requests (release name)
     steps:
       - uses: actions/checkout@v4
 
@@ -176,18 +178,28 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          CORE_SHA: ${{ needs.build.outputs.core_sha }}
+          BR_SHA: ${{ github.sha }}
         run: |
-          # "0.<N+1> (<pull requests merged since the last release, core and plugin>)".
-          gh release list --repo "$REPO" --limit 200 --json name,publishedAt > "$RUNNER_TEMP/releases.json"
-          since=$(jq -r '[.[].publishedAt] | max // ""' "$RUNNER_TEMP/releases.json")
-          query="is:merged"
-          if [ -n "$since" ]; then query="is:merged merged:>$since"; fi
-          {
-            gh pr list --repo "$CORE_REPO" --state merged --search "$query" --limit 50 --json title,mergedAt
-            gh pr list --repo "$REPO" --state merged --search "$query" --limit 50 --json title,mergedAt
-          } | jq -s 'add | sort_by(.mergedAt)' > "$RUNNER_TEMP/pulls.json"
-          name=$(python3 packaging/windows/release_name.py --releases "$RUNNER_TEMP/releases.json" \
-                 --pulls "$RUNNER_TEMP/pulls.json")
+          # "0.<N+1> (<pull requests in this build and not in the previous release's>)".
+          set -euo pipefail
+          script=packaging/windows/release_name.py
+          tmp="$RUNNER_TEMP"
+          gh release list --repo "$REPO" --limit 200 --json name,tagName > "$tmp/releases.json"
+          previous=$(python3 "$script" previous --releases "$tmp/releases.json")
+          echo "[]" > "$tmp/titles.json"
+          if [ -n "$previous" ]; then
+            read -r previous_core previous_br <<< "$previous"
+            # Core first, then plugin; each in merge order. Only what this build contains.
+            for pair in "$CORE_REPO $previous_core $CORE_SHA" "$REPO $previous_br $BR_SHA"; do
+              read -r repo base head <<< "$pair"
+              gh api "repos/$repo/compare/$base...$head" --jq '[.commits[].commit.message]' > "$tmp/messages.json"
+              for number in $(python3 "$script" pulls --messages "$tmp/messages.json"); do
+                gh api "repos/$repo/pulls/$number" --jq '.title'
+              done
+            done | jq -R . | jq -s . > "$tmp/titles.json"
+          fi
+          name=$(python3 "$script" name --releases "$tmp/releases.json" --titles "$tmp/titles.json")
           echo "name=$name" >> "$GITHUB_OUTPUT"
           echo "release name: $name"
 
