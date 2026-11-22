@@ -323,3 +323,58 @@ def test_tick_drives_the_loop(cache, core_setting, monkeypatch):
     monkeypatch.setattr(layer, "_advance", lambda now: calls.append(now))
     layer.tick()
     assert len(calls) == 1
+
+
+# ---- the play button ---------------------------------------------------------------
+
+needs_play_button = pytest.mark.skipif(not radar._PLAY_BUTTON, reason="the core's slider has no play button")
+
+
+@needs_play_button
+def test_the_slider_has_a_play_button_that_starts_paused(cache):
+    layer = _publish(_three_frames(int(time.time())))
+    assert layer.slider().playing is False
+
+
+@needs_play_button
+def test_play_from_live_starts_at_the_oldest_frame_and_loops(cache):
+    layer = _publish(_three_frames(int(time.time())))
+    layer.toggle_slider_play()
+    assert layer.slider().playing is True
+    assert layer._shown_index() == 0
+    layer._last_step = 100.0
+    layer._advance(100.7)        # frame_seconds (0.6) later: the next frame
+    assert layer._shown_index() == 1
+
+
+@needs_play_button
+def test_pause_holds_the_frame_shown(cache):
+    layer = _publish(_three_frames(int(time.time())))
+    layer.toggle_slider_play()
+    layer._last_step = 100.0
+    layer._advance(100.7)        # on frame 1
+    layer.toggle_slider_play()
+    spec = layer.slider()
+    assert spec.playing is False and spec.index == 1 and spec.caption == "-5m"
+    layer._advance(200.0)
+    assert layer._shown_index() == 1
+
+
+@needs_play_button
+def test_play_goes_on_from_a_frame_chosen_with_the_slider(cache):
+    layer = _publish(_three_frames(int(time.time())))
+    layer.set_slider(1)
+    layer.toggle_slider_play()
+    assert layer._pin is None and layer._shown_index() == 1 and layer.slider().playing is True
+
+
+@needs_play_button
+def test_the_button_overrides_the_core_animate_setting(cache, core_setting):
+    core_setting(LOOP_KEY, True)
+    layer = _publish(_three_frames(int(time.time())))
+    assert layer.slider().playing is True     # the setting plays the loop until the button is pressed
+    layer.toggle_slider_play()
+    assert layer.slider().playing is False
+    layer._advance(100.0)
+    layer._advance(200.0)
+    assert layer.slider().playing is False
