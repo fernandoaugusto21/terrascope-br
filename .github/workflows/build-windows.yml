@@ -1,0 +1,149 @@
+name: Windows build
+
+# A standalone terrascope.exe with this plugin (core from the main branch of
+# fernandoaugusto21/Terrascope), checked, zipped, and published as a GitHub release
+# with its Scoop manifest. Pull requests build and check it without publishing.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      core_ref:
+        description: Branch, tag or commit of fernandoaugusto21/Terrascope to build with
+        required: false
+        default: main
+        type: string
+  # Sent by the core repository when its main branch changes (needs a token there;
+  # see README, "Windows build").
+  repository_dispatch:
+    types: [core-main]
+  # Without that token: once a day, build when the core's main has moved.
+  schedule:
+    - cron: "17 6 * * *"
+
+permissions:
+  contents: read
+
+env:
+  CORE_REPO: fernandoaugusto21/Terrascope
+
+jobs:
+  build:
+    runs-on: windows-latest
+    outputs:
+      tag: ${{ steps.names.outputs.tag }}
+      skip: ${{ steps.names.outputs.skip }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Name the build
+        id: names
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CORE_REF: ${{ inputs.core_ref || 'main' }}
+        run: |
+          core_sha=$(git ls-remote "https://github.com/$CORE_REPO" "$CORE_REF" | head -1 | cut -f1)
+          if [ -z "$core_sha" ]; then core_sha="$CORE_REF"; fi   # a commit given as is
+          br_sha=$(git rev-parse HEAD)
+          tag="windows-${core_sha:0:7}-br${br_sha:0:7}"
+          skip=false
+          if [ "${{ github.event_name }}" = "schedule" ] && gh release view "$tag" >/dev/null 2>&1; then
+            skip=true   # this core and this plugin were built already
+          fi
+          echo "core_sha=$core_sha" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+          echo "build $tag (skip: $skip)"
+
+      - name: Install the core, the plugin and PyInstaller
+        if: steps.names.outputs.skip != 'true'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "terrascope @ git+https://github.com/$CORE_REPO@${{ steps.names.outputs.core_sha }}"
+          python -m pip install . pyinstaller
+          python -m terrascope_br
+
+      - name: Build terrascope.exe
+        if: steps.names.outputs.skip != 'true'
+        run: |
+          cat > "$RUNNER_TEMP/entry.py" <<'PY'
+          from terrascope.core.cli import run
+
+          if __name__ == "__main__":
+              run()
+          PY
+          # The entry points live in the packages' metadata: without --copy-metadata
+          # the frozen app finds no plugin.
+          pyinstaller --clean --noconfirm --onefile --console --name terrascope \
+            --copy-metadata terrascope --copy-metadata terrascope-br \
+            --collect-all terrascope --collect-all terrascope_br \
+            --collect-all numpy --collect-all PIL --collect-all yaml --collect-all tzdata \
+            "$RUNNER_TEMP/entry.py"
+
+      - name: Check the executable
+        if: steps.names.outputs.skip != 'true'
+        run: |
+          dist/terrascope.exe --version
+          dist/terrascope.exe --list-tabs | tee tabs.txt
+          grep -q "plugin:terrascope-br" tabs.txt
+          dist/terrascope.exe --list-layers | tee layers.txt
+          for layer in br_ufs br_municipios br_fires br_quakes br_radar br_inmet_alerts br_inundation_cge \
+                       br_global_rain br_global_temp; do
+            grep -q "^$layer" layers.txt || { echo "missing layer $layer"; exit 1; }
+          done
+
+      - name: Zip and write the Scoop manifest
+        if: steps.names.outputs.skip != 'true'
+        run: |
+          core_version=$(python -c "import importlib.metadata as m; print(m.version('terrascope'))")
+          tag="${{ steps.names.outputs.tag }}"
+          version="${core_version}-${tag#windows-}"
+          zip="terrascope-br_${version}_windows_x86_64.zip"
+          mkdir -p release
+          (cd dist && 7z a -tzip "../release/$zip" terrascope.exe > /dev/null)
+          python packaging/windows/make_scoop_manifest.py --version "$version" --zip "release/$zip" \
+            --url "https://github.com/${{ github.repository }}/releases/download/$tag/$zip" \
+            --output release/terrascope.json
+          (cd release && sha256sum "$zip" > checksums.txt)
+
+      - uses: actions/upload-artifact@v4
+        if: steps.names.outputs.skip != 'true'
+        with:
+          name: windows-build
+          path: release/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: build
+    if: github.event_name != 'pull_request' && needs.build.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: release
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.build.outputs.tag }}
+        run: |
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/* --clobber --repo "${{ github.repository }}"
+          else
+            gh release create "$TAG" release/* --repo "${{ github.repository }}" \
+              --target "${{ github.sha }}" --latest --title "Windows build $TAG" \
+              --notes "terrascope.exe with this plugin, core ${TAG#windows-} (core commit, then plugin commit). Install: scoop install https://github.com/${{ github.repository }}/releases/latest/download/terrascope.json"
+          fi

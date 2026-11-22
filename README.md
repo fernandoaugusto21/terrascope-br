@@ -24,6 +24,21 @@ When a release with plugin support is out, this line changes to that release.
 
 `pip uninstall terrascope-br` removes the tab and the layers again.
 
+### Windows: standalone build (Scoop)
+
+Each merge into `main` builds a standalone `terrascope.exe` with this plugin and the core's `main` branch, and
+publishes it as a GitHub release (`windows-<core commit>-br<plugin commit>`) with its Scoop manifest
+(`.github/workflows/build-windows.yml`). To install or update the newest one:
+
+    scoop install https://github.com/fernandoaugusto21/terrascope-br/releases/latest/download/terrascope.json
+    scoop uninstall terrascope; scoop install <same address>    # to move to a newer build
+
+The build also runs when the core's `main` changes: right away when the core's workflow `notify-plugin.yml` has a
+token to send the signal (secret `PLUGIN_DISPATCH_TOKEN` in the core repository: a fine-grained token with
+"Contents: read and write" on this repository), and otherwise once a day, when the core's `main` has moved since the
+last build. Pull requests build and check the executable without publishing it. A build can also be started by hand
+(Actions, "Windows build", with a branch, tag or commit of the core).
+
 ## Layers
 
 | Layer (`--disable-layer`) | Key | Source | Refresh | Notes |
@@ -231,7 +246,7 @@ To update the catalogue after changing texts:
     pip install -e ".[dev]"
     pytest tests
 
-The tests read trimmed samples from `tests/data` (see the README there) and do not use the network.
+The tests read trimmed samples from `tests/data` (see the README there) and do not use the network. They run on every pull request and on `main` (Ubuntu and Windows, `.github/workflows/ci.yml`), against the core's `main`.
 
 ## Sources and terms
 
