@@ -1,4 +1,5 @@
-"""The Windows build releases are named "0.<N> (<pull request titles>)"."""
+"""The Windows build releases are named "0.<N> (<pull request titles>)" ("0.<N>.<M>" for a
+hotfix), with the changelog of their pull requests as notes."""
 
 import importlib.util
 from pathlib import Path
@@ -13,7 +14,7 @@ def test_the_number_follows_the_highest_earlier_one():
     names = ["0.2 (Windows Support + .br plugin)", "Windows build windows-179e900-br930998f", "0.10 (x)"]
     assert release_name.next_number(names) == 11
     assert release_name.next_number(["Windows build windows-abc"]) == 1
-    assert release_name.next_number(["0.2.1 (patch)"]) == 1   # only 0.<N>
+    assert release_name.next_number(["0.2.1 (patch)"]) == 3   # after a hotfix of 0.2, the next minor is 0.3
 
 
 def test_the_summary_joins_the_pull_request_titles():
@@ -67,3 +68,57 @@ def test_the_windows_prune_step_never_selects_a_road_release():
                       key=lambda r: r["createdAt"], reverse=True)[10:]
     assert selected and all(r["tagName"].startswith("windows-") for r in selected)
     assert not any(r["tagName"].startswith("roads-") for r in selected)
+
+
+# ---- hotfixes and notes ---------------------------------------------------------------
+
+NAMES = ["0.8 (a)", "0.9 (b)", "Road network roads-20261122-2247"]
+
+
+def _pull(number, branch, repo="fernandoaugusto21/terrascope-br", body=""):
+    return {"repo": repo, "number": number, "title": f"PR {number}", "branch": branch, "body": body,
+            "url": f"https://github.com/{repo}/pull/{number}"}
+
+
+def test_a_build_of_hotfix_branches_only_is_the_next_patch():
+    assert release_name.is_hotfix([_pull(29, "hf-0.9.1")])
+    assert release_name.release_name(NAMES, ["Hotfix"], hotfix=True) == "0.9.1 (Hotfix)"
+    assert release_name.release_name([*NAMES, "0.9.1 (Hotfix)"], ["Again"], hotfix=True) == "0.9.2 (Again)"
+
+
+def test_any_other_pull_request_makes_the_next_minor():
+    assert not release_name.is_hotfix([_pull(29, "hf-0.9.1"), _pull(30, "fb-feature")])
+    assert not release_name.is_hotfix([])                     # a rebuild is not a hotfix
+    assert release_name.release_name([*NAMES, "0.9.2 (Again)"], ["Feature"]) == "0.10 (Feature)"
+
+
+def test_the_previous_release_is_the_highest_version_hotfixes_included():
+    releases = [{"name": "0.9 (b)", "tagName": "windows-381ce16-brf53ddb1"},
+                {"name": "0.9.1 (Hotfix)", "tagName": "windows-381ce16-br1234567"}]
+    assert release_name.previous_commits(releases) == ("381ce16", "1234567")
+
+
+def test_the_notes_list_each_pull_request_with_its_link_and_first_paragraph():
+    pulls = [_pull(26, "fb-x", repo="fernandoaugusto21/Terrascope", body="Core change.\n\nDetails."),
+             _pull(28, "fb-y", body="  Plugin   change\r\non two lines.\r\n\r\nMore.")]
+    text = release_name.notes(pulls, "0.9", "https://example/terrascope-br.json")
+    assert text.startswith("## 0.9: changes")
+    core, plugin = text.index("### Terrascope (core)"), text.index("### terrascope-br (plugin)")
+    assert core < plugin
+    assert "- **PR 26** ([#26](https://github.com/fernandoaugusto21/Terrascope/pull/26))\n  Core change." in text
+    assert "  Plugin change on two lines." in text and "More." not in text and "Details." not in text
+    assert "scoop install https://example/terrascope-br.json" in text
+
+
+def test_the_notes_of_a_rebuild_say_so():
+    assert "No pull request merged" in release_name.notes([], "0.10")
+
+
+def test_the_name_command_reads_the_pulls(tmp_path):
+    import json, subprocess, sys
+    releases, pulls = tmp_path / "r.json", tmp_path / "p.json"
+    releases.write_text(json.dumps([{"name": n, "tagName": "x"} for n in NAMES]), encoding="utf-8")
+    pulls.write_text(json.dumps([_pull(29, "hf-0.9.1")]), encoding="utf-8")
+    out = subprocess.run([sys.executable, str(SCRIPT), "name", "--releases", str(releases), "--pulls", str(pulls)],
+                         capture_output=True, text=True, check=True).stdout.strip()
+    assert out == "0.9.1 (PR 29)"

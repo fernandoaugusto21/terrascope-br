@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: terrascope-br 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-22 18:17-0300\n"
+"POT-Creation-Date: 2026-11-22 20:00-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: pt_BR\n"
@@ -20,46 +20,54 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: src/terrascope_br/base.py:113
+#: src/terrascope_br/base.py:58
+msgid "connection dropped"
+msgstr "conexão interrompida"
+
+#: src/terrascope_br/base.py:60
+msgid "connection refused"
+msgstr "conexão recusada"
+
+#: src/terrascope_br/base.py:153
 #: src/terrascope_br/sources/global_weather.py:238
 #, python-format
 msgid "unavailable: %s"
 msgstr "indisponível: %s"
 
-#: src/terrascope_br/base.py:115
+#: src/terrascope_br/base.py:155
 #, python-format
 msgid "cache unreadable: %s"
 msgstr "cache ilegível: %s"
 
-#: src/terrascope_br/base.py:116
+#: src/terrascope_br/base.py:156
 #: src/terrascope_br/sources/global_weather.py:238
 msgid "no data yet"
 msgstr "sem dados ainda"
 
-#: src/terrascope_br/base.py:118
+#: src/terrascope_br/base.py:158
 #: src/terrascope_br/sources/global_weather.py:240
 #, python-format
 msgid "update failed: %s"
 msgstr "falha na atualização: %s"
 
-#: src/terrascope_br/base.py:120
+#: src/terrascope_br/base.py:160
 #: src/terrascope_br/sources/global_weather.py:242
 #, python-format
 msgid "no update since %s"
 msgstr "sem atualização desde %s"
 
-#: src/terrascope_br/base.py:121
+#: src/terrascope_br/base.py:161
 #, python-format
 msgid "updated %s"
 msgstr "atualizado %s"
 
-#: src/terrascope_br/base.py:169
+#: src/terrascope_br/base.py:209
 #: src/terrascope_br/sources/global_weather.py:250
 #: src/terrascope_br/sources/global_weather.py:417
 msgid "on"
 msgstr "ligado"
 
-#: src/terrascope_br/base.py:169
+#: src/terrascope_br/base.py:209
 #: src/terrascope_br/sources/global_weather.py:250
 #: src/terrascope_br/sources/global_weather.py:417
 msgid "off"
@@ -69,7 +77,8 @@ msgstr "desligado"
 msgid ""
 "Data: IBGE, INPE, IAG-USP, USGS, INMET, CGE, RainViewer, Open-Meteo, "
 "OpenStreetMap"
-msgstr "Dados: IBGE, INPE, IAG-USP, USGS, INMET, CGE, RainViewer, Open-Meteo, "
+msgstr ""
+"Dados: IBGE, INPE, IAG-USP, USGS, INMET, CGE, RainViewer, Open-Meteo, "
 "OpenStreetMap"
 
 #: src/terrascope_br/tabs.py:27
@@ -176,8 +185,8 @@ msgstr "≈ alagamento, intransitável"
 
 #: src/terrascope_br/sources/cge.py:692 src/terrascope_br/sources/cge.py:707
 #: src/terrascope_br/sources/iag.py:216 src/terrascope_br/sources/iag.py:217
-#: src/terrascope_br/sources/inmet.py:312
-#: src/terrascope_br/sources/inmet.py:314
+#: src/terrascope_br/sources/inmet.py:328
+#: src/terrascope_br/sources/inmet.py:330
 #: src/terrascope_br/sources/spaguas.py:144
 msgid "N/A"
 msgstr "n/d"
@@ -251,33 +260,33 @@ msgid "offline"
 msgstr "sem conexão"
 
 #: src/terrascope_br/sources/cge.py:743
-#, fuzzy, python-format
 msgid "unavailable"
-msgstr "indisponível: %s"
+msgstr "indisponível"
 
-#: src/terrascope_br/sources/chuva_online.py:138
+#: src/terrascope_br/sources/chuva_online.py:141
 msgid "Chuva Online radar, 36 km"
 msgstr "radar Chuva Online, 36 km"
 
-#: src/terrascope_br/sources/chuva_online.py:139
-#: src/terrascope_br/sources/chuva_online.py:264
-#: src/terrascope_br/sources/chuva_online.py:268
+#: src/terrascope_br/sources/chuva_online.py:142
+#: src/terrascope_br/sources/chuva_online.py:273
+#: src/terrascope_br/sources/chuva_online.py:278
+#: src/terrascope_br/sources/chuva_online.py:280
 msgid "RADAR"
 msgstr "RADAR"
 
-#: src/terrascope_br/sources/chuva_online.py:267
+#: src/terrascope_br/sources/chuva_online.py:276
 msgid "LIVE"
 msgstr "AO VIVO"
 
-#: src/terrascope_br/sources/chuva_online.py:295
+#: src/terrascope_br/sources/chuva_online.py:325
 msgid "weak"
 msgstr "fraca"
 
-#: src/terrascope_br/sources/chuva_online.py:296
+#: src/terrascope_br/sources/chuva_online.py:326
 msgid "moderate"
 msgstr "moderada"
 
-#: src/terrascope_br/sources/chuva_online.py:297
+#: src/terrascope_br/sources/chuva_online.py:327
 msgid "strong"
 msgstr "forte"
 
@@ -389,35 +398,35 @@ msgstr "MUNICÍPIO"
 msgid "unnamed warning"
 msgstr "aviso sem nome"
 
-#: src/terrascope_br/sources/inmet.py:208
+#: src/terrascope_br/sources/inmet.py:224
 msgid "INMET warnings"
 msgstr "avisos do INMET"
 
-#: src/terrascope_br/sources/inmet.py:209
+#: src/terrascope_br/sources/inmet.py:225
 msgid "WARNING"
 msgstr "AVISO"
 
-#: src/terrascope_br/sources/inmet.py:301
+#: src/terrascope_br/sources/inmet.py:317
 msgid "no active warnings"
 msgstr "sem avisos ativos"
 
-#: src/terrascope_br/sources/inmet.py:311
+#: src/terrascope_br/sources/inmet.py:327
 msgid "EVENT"
 msgstr "EVENTO"
 
-#: src/terrascope_br/sources/inmet.py:312
+#: src/terrascope_br/sources/inmet.py:328
 msgid "SEVERITY"
 msgstr "GRAVIDADE"
 
-#: src/terrascope_br/sources/inmet.py:313
+#: src/terrascope_br/sources/inmet.py:329
 msgid "VALID"
 msgstr "VALIDADE"
 
-#: src/terrascope_br/sources/inmet.py:314
+#: src/terrascope_br/sources/inmet.py:330
 msgid "STATES"
 msgstr "ESTADOS"
 
-#: src/terrascope_br/sources/inmet.py:315
+#: src/terrascope_br/sources/inmet.py:331
 msgid "MUNICIPALITIES"
 msgstr "MUNICÍPIOS"
 
@@ -449,35 +458,35 @@ msgstr "SATÉLITE"
 msgid "AGE"
 msgstr "IDADE"
 
-#: src/terrascope_br/sources/roads.py:55
+#: src/terrascope_br/sources/roads.py:61
 msgid "motorway"
 msgstr "autopista"
 
-#: src/terrascope_br/sources/roads.py:56
+#: src/terrascope_br/sources/roads.py:62
 msgid "trunk road"
 msgstr "via expressa"
 
-#: src/terrascope_br/sources/roads.py:57
+#: src/terrascope_br/sources/roads.py:63
 msgid "primary"
 msgstr "via primária"
 
-#: src/terrascope_br/sources/roads.py:58
+#: src/terrascope_br/sources/roads.py:64
 msgid "secondary"
 msgstr "via secundária"
 
-#: src/terrascope_br/sources/roads.py:59
+#: src/terrascope_br/sources/roads.py:65
 msgid "tertiary"
 msgstr "via terciária"
 
-#: src/terrascope_br/sources/roads.py:60
+#: src/terrascope_br/sources/roads.py:66
 msgid "local streets"
 msgstr "ruas locais"
 
-#: src/terrascope_br/sources/roads.py:82
+#: src/terrascope_br/sources/roads.py:88
 msgid "Roads (OSM)"
 msgstr "Viário (OSM)"
 
-#: src/terrascope_br/sources/roads.py:83
+#: src/terrascope_br/sources/roads.py:89
 msgid "ROAD"
 msgstr "VIA"
 

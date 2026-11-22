@@ -181,13 +181,14 @@ jobs:
           CORE_SHA: ${{ needs.build.outputs.core_sha }}
           BR_SHA: ${{ github.sha }}
         run: |
-          # "0.<N+1> (<pull requests in this build and not in the previous release's>)".
+          # "0.<N> (<pull requests in this build and not in the previous release's>)", "0.<N>.<M> (...)"
+          # when every one of them is from a hotfix branch (hf-*), and the changelog for the notes.
           set -euo pipefail
           script=packaging/windows/release_name.py
           tmp="$RUNNER_TEMP"
           gh release list --repo "$REPO" --limit 200 --json name,tagName > "$tmp/releases.json"
           previous=$(python3 "$script" previous --releases "$tmp/releases.json")
-          echo "[]" > "$tmp/titles.json"
+          echo "[]" > "$tmp/pulls.json"
           if [ -n "$previous" ]; then
             read -r previous_core previous_br <<< "$previous"
             # Core first, then plugin; each in merge order. Only what this build contains.
@@ -195,13 +196,17 @@ jobs:
               read -r repo base head <<< "$pair"
               gh api "repos/$repo/compare/$base...$head" --jq '[.commits[].commit.message]' > "$tmp/messages.json"
               for number in $(python3 "$script" pulls --messages "$tmp/messages.json"); do
-                gh api "repos/$repo/pulls/$number" --jq '.title'
+                gh api "repos/$repo/pulls/$number" \
+                  --jq "{repo: \"$repo\", number, title, branch: .head.ref, body, url: .html_url}"
               done
-            done | jq -R . | jq -s . > "$tmp/titles.json"
+            done | jq -s . > "$tmp/pulls.json"
           fi
-          name=$(python3 "$script" name --releases "$tmp/releases.json" --titles "$tmp/titles.json")
+          name=$(python3 "$script" name --releases "$tmp/releases.json" --pulls "$tmp/pulls.json")
+          python3 "$script" notes --pulls "$tmp/pulls.json" --version "${name%% *}" \
+            --install "https://github.com/$REPO/releases/latest/download/terrascope-br.json" > "$tmp/notes.md"
           echo "name=$name" >> "$GITHUB_OUTPUT"
           echo "release name: $name"
+          cat "$tmp/notes.md"
 
       - name: Publish the release
         env:
@@ -214,8 +219,7 @@ jobs:
           # Every file in one call: the zip and its manifest appear together.
           gh release create "$TAG" release/* --repo "$REPO" --target "${{ github.sha }}" \
             --latest="$LATEST" --prerelease="$([ "$LATEST" = true ] && echo false || echo true)" \
-            --title "$TITLE" \
-            --notes "terrascope.exe with this plugin; core and plugin commits in the name. Install the newest build of the core's main: scoop install https://github.com/$REPO/releases/latest/download/terrascope-br.json"
+            --title "$TITLE" --notes-file "$RUNNER_TEMP/notes.md"
 
       - name: Keep the newest builds only
         env:

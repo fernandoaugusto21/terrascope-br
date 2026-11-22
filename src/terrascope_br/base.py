@@ -13,6 +13,7 @@ nothing and keeps only the title line."""
 
 from __future__ import annotations
 
+import re
 import time
 from datetime import datetime, timezone
 
@@ -24,6 +25,45 @@ from terrascope_br._i18n import _
 from terrascope_br.net import SourceError
 
 SWATCH = "■"  # the glyph drawn in front of each colour of a legend key
+
+try:   # the core's short transport messages (DNS, timeout, HTTP code)
+    from terrascope.core.ui.layout import concise_error_message as _core_concise
+except ImportError:   # an older core
+    def _core_concise(error: str, limit: int = 42) -> str:
+        text = " ".join(str(error).split())
+        return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+
+ERROR_LIMIT = 40   # characters of one source's reason in the legend
+# A source name in front of its reason in a combined message ("IAG-USP: ...; USGS: ...").
+_SOURCE = re.compile(r"^([A-Z][A-Z0-9/-]{1,15}): (.+)$")
+_DROPPED = ("10053", "10054", "connectionaborted", "connectionreset", "remotedisconnected",
+            "connection aborted", "connection reset", "remote end closed")
+_REFUSED = ("10061", "connectionrefused", "connection refused")
+
+
+def short_error(error) -> str:
+    """A failed fetch's reason as the legend shows it: one short phrase per source
+    instead of the exception text ("ConnectionAbortedError: [WinError 10053] Uma
+    conexão estabelecida foi anulada..." -> "connection dropped"). The full text is
+    kept in the layer's `error`."""
+    parts = []
+    for part in str(error or "").split("; "):
+        part = " ".join(part.split())
+        if not part:
+            continue
+        match = _SOURCE.match(part)
+        source, reason = (match.group(1), match.group(2)) if match else ("", part)
+        lowered = reason.lower()
+        if any(token in lowered for token in _DROPPED):
+            reason = _("connection dropped")
+        elif any(token in lowered for token in _REFUSED):
+            reason = _("connection refused")
+        else:
+            reason = _core_concise(reason, ERROR_LIMIT)
+        text = f"{source}: {reason}" if source else reason
+        if text not in parts:
+            parts.append(text)
+    return "; ".join(parts)
 
 def utc_text(epoch: float) -> str:
     return datetime.fromtimestamp(epoch, timezone.utc).strftime("%d/%m %H:%M UTC")
@@ -110,12 +150,12 @@ class SourceLayer(Layer):
         """What the legend says about the data, from the state right now."""
         if self.data_time is None:
             if self.error:
-                return _("unavailable: %s") % self.error
+                return _("unavailable: %s") % short_error(self.error)
             if self.read_error:
                 return _("cache unreadable: %s") % self.read_error
             return _("no data yet")
         if self.error:
-            return _("update failed: %s") % self.error
+            return _("update failed: %s") % short_error(self.error)
         if self.is_stale():
             return _("no update since %s") % utc_text(self.data_time)
         return _("updated %s") % utc_text(self.data_time)
