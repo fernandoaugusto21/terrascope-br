@@ -20,6 +20,7 @@ DATA = Path(__file__).parent / "data"
 PAGE = (DATA / "cge_alertas.html").read_text(encoding="utf-8")
 IMAGE = (DATA / "cge_alertas.png").read_bytes()
 REGIONS = json.loads((DATA / "geosampa_subprefeituras.json").read_text(encoding="utf-8"))
+FLOODS = (DATA / "cge_alagamentos_18112026.html").read_text(encoding="utf-8")
 
 
 def _painted(*circles) -> bytes:
@@ -151,6 +152,8 @@ def test_fetch_reads_the_page_the_image_and_the_outlines_once(layer, monkeypatch
             return 200, json.dumps(REGIONS).encode(), {}
         if url == cge.PAGE_URL:
             return 200, PAGE.encode(), {}
+        if url == cge.FLOODS_URL:
+            return 200, FLOODS.encode(), {}
         return 200, _painted((157, 153, 10, (255, 151, 0))), {"Last-Modified": "Sat, 21 Nov 2026 20:31:11 GMT"}
 
     monkeypatch.setattr(cge, "get", fake_get)
@@ -224,6 +227,8 @@ def test_a_failed_outline_refresh_keeps_the_states_coming(layer, monkeypatch):
             raise SourceError("HTTP 500")
         if url == cge.PAGE_URL:
             return 200, PAGE.encode(), {}
+        if url == cge.FLOODS_URL:
+            return 200, FLOODS.encode(), {}
         return 200, _painted((157, 153, 10, (255, 0, 0))), {"Last-Modified": "Sat, 21 Nov 2026 20:31:11 GMT"}
 
     monkeypatch.setattr(cge, "get", fake_get)
@@ -242,6 +247,8 @@ def test_an_unchanged_image_is_not_downloaded_again(layer, monkeypatch):
             return 200, json.dumps(REGIONS).encode(), {}
         if url == cge.PAGE_URL:
             return 200, PAGE.encode(), {}
+        if url == cge.FLOODS_URL:
+            return 200, FLOODS.encode(), {}
         sent.append(if_modified_since)
         if if_modified_since:
             return 304, b"", {}
@@ -281,3 +288,142 @@ def test_an_older_core_gets_geosampa_in_the_tab_line(monkeypatch):
     assert "GeoSampa" not in tabs.brasil_tabs()[0]["attribution"]
     monkeypatch.setattr(tabs, "_core_names_layer_credits", lambda: False)
     assert tabs.brasil_tabs()[0]["attribution"].endswith("GeoSampa (CC BY-SA 4.0)")
+
+
+# ---- region names, flood points, station and forecast ------------------------------
+
+STATIONS_PAGE = (DATA / "cge_estacoes.html").read_text(encoding="utf-8")
+STATION_503 = (DATA / "cge_estacao_503.html").read_text(encoding="utf-8")
+FORECAST_PAGE = (DATA / "cge_previsao_estendida.html").read_text(encoding="utf-8")
+NO_FLOODS = (DATA / "cge_alagamentos_vazio.html").read_text(encoding="utf-8")
+
+
+def test_the_flood_list_gives_each_region_its_zone_and_points():
+    floods = cge.parse_floods(FLOODS)
+    assert set(floods) == {"MG", "PJ", "LA", "PI", "MO"}
+    assert floods["MG"]["zone"] == "Zona Norte" and floods["LA"]["zone"] == "Zona Oeste"
+    first = floods["MG"]["points"][0]
+    assert first == {"active": True, "passable": True, "time": "17:18–19:40", "street": "AV MORVAN DIAS DE FIGUEIREDO",
+                     "direction": "A SENNA/CASTELO B", "reference": "AV GUILHERME"}
+    assert cge.flood_summary(floods["MG"]["points"]) == (1, 2, cge.PASSABLE_COLOR)
+    assert cge.flood_summary(floods["PJ"]["points"]) == (1, 1, cge.IMPASSABLE_COLOR)
+    assert cge.flood_summary(floods["PI"]["points"]) == (0, 4, None)
+    assert cge.parse_floods(NO_FLOODS) == {}
+    with pytest.raises(ValueError):
+        cge.parse_floods(PAGE)
+
+
+@pytest.mark.parametrize("name, code", [
+    ("Vila Maria/ Vila Guilherme", "MG"), ("Pirituba/Jaraguá", "PJ"), ("Jaçanã/ Tremembé", "JT"),
+    ("Aricanduva/ Vila Formosa", "AF"), ("Capela do Socorro", "CS"), ("M Boi Mirim", "MB"), ("Sé", "SE"),
+])
+def test_region_names_of_the_cge_pages(name, code):
+    assert cge.region_code(name) == code
+
+
+def test_the_station_list_maps_27_regions_to_their_station():
+    stations = cge.parse_station_list(STATIONS_PAGE)
+    assert len(stations) == 27
+    assert stations["SE"] == "503" and stations["PR"] == "504" and stations["CS"] == "846"
+    assert "CV" not in stations   # Casa Verde has no station of its own
+
+
+def _write_floods(floods_time: float | None = None) -> None:
+    _write({"SE": "atencao"})
+    document = json.loads(store.read_bytes(store.path("cge", "alertas.json")).decode())
+    document.update({"floods": cge.parse_floods(FLOODS), "floods_time": floods_time or time.time()})
+    store.write_bytes(store.path("cge", "alertas.json"), json.dumps(document).encode())
+
+
+ZOOMED = View(-46.65, -23.55, 256, 160, 60)
+
+
+def test_names_from_the_label_zoom_and_flood_marks_with_their_number(layer):
+    _write_floods()
+    layer.reload()
+    labels = {marker.label: marker for marker in layer.build(ZOOMED).markers if marker.label}
+    names = {region["region"] for region in layer.regions}
+    assert names & set(labels)                                   # region names drawn
+    city = [marker for marker in layer.build(CITY).markers if marker.label]   # zoom 64, the whole city
+    assert not names & {marker.label for marker in city}         # no names below the label zoom
+    # One active point each: Pirituba/Jaraguá impassable, Vila Maria/Vila Guilherme passable.
+    assert sorted((marker.item["code"], marker.label, marker.color) for marker in city) == [
+        ("MG", "≈1", cge.PASSABLE_COLOR), ("PJ", "≈1", cge.IMPASSABLE_COLOR)]
+
+
+def test_names_do_not_cover_each_other(layer):
+    _write_floods()
+    layer.reload()
+    cells = []
+    for marker in layer.build(ZOOMED).markers:
+        if marker.label:
+            cells += [(marker.x + dx, marker.y) for dx in range(len(marker.label))]
+    assert len(cells) == len(set(cells))
+
+
+def test_old_flood_points_are_not_shown(layer):
+    _write_floods(floods_time=time.time() - 2 * 3600)
+    layer.reload()
+    assert not [m for m in layer.build(CITY).markers if m.label and m.label.startswith("≈")]
+    assert dict(layer._flood_rows(layer.regions[0]))[cge._("FLOODS")] == cge._("N/A")
+
+
+def test_a_click_on_a_name_selects_the_region(layer):
+    _write_floods()
+    layer.reload()
+    layer.last_markers = layer.build(ZOOMED).markers      # what the core keeps of the frame
+    named = next(marker for marker in layer.last_markers if marker.label and not marker.label.startswith("≈"))
+    hits = layer.hit_test_all(named.x + len(named.label) - 1, named.y)
+    assert hits and hits[0][1]["region"] == named.label
+
+
+def test_the_info_box_lists_the_floods_of_the_region(layer, monkeypatch):
+    _write_floods()
+    layer.reload()
+    monkeypatch.setattr(layer, "_region_details", lambda code: {"station": "S", "forecast": "F"})
+    region = next(region for region in layer.regions if region["code"] == "MG")
+    layer.selected = region
+    rows = layer.info_rows()
+    values = [value for _name, value in rows]
+    assert ("ZONE" in [name for name, _value in rows] or cge._("ZONE") in [name for name, _value in rows])
+    assert any("AV MORVAN DIAS DE FIGUEIREDO" in value for value in values)
+    assert "S" in values and "F" in values
+
+
+def test_region_details_read_the_station_and_the_city_forecast(monkeypatch):
+    from datetime import datetime
+
+    from terrascope_br.sources import weather_providers as wp
+
+    pages = {cge.STATIONS_URL: STATIONS_PAGE, cge.STATION_URL.format(post="503"): STATION_503,
+             wp.CGE_FORECAST_URL: FORECAST_PAGE}
+    monkeypatch.setattr(wp, "_page", lambda url, keep: pages[url])
+    forecast_day = wp.parse_cge_forecast(FORECAST_PAGE)[0]["date"]
+    now = datetime.fromisoformat(forecast_day + "T10:00").replace(tzinfo=wp.SAO_PAULO_TIME)
+    station, forecast = cge.region_details("SE", now)
+    assert "°C" in station
+    assert forecast.endswith(cge._("(whole city: the CGE gives no forecast by region)"))
+    assert cge.region_details("CV", now)[0] == cge._("no CGE station in this region")
+
+
+def test_a_failed_flood_list_keeps_the_states_updating(layer, monkeypatch):
+    def fake_get(url, timeout, min_gap=1.0, if_modified_since=None):
+        if url == cge.REGIONS_URL:
+            return 200, json.dumps(REGIONS).encode(), {}
+        if url == cge.PAGE_URL:
+            return 200, PAGE.encode(), {}
+        if url == cge.FLOODS_URL:
+            raise cge.SourceError("HTTP 503")
+        return 200, _painted((157, 153, 10, (255, 0, 0))), {}
+
+    monkeypatch.setattr(cge, "get", fake_get)
+    layer.fetch()
+    layer.reload()
+    assert [item["state"] for item in layer.items] == ["alerta"] and layer.floods_time is None
+
+
+def test_every_region_has_a_zone_even_on_a_day_without_floods(layer):
+    _write({})
+    layer.reload()
+    assert len(cge.REGION_ZONES) == 32 and set(cge.REGION_ZONES) == set(cge.REGION_CODES.values())
+    assert all(region["zone"] for region in layer.regions)
