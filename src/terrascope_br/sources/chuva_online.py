@@ -38,6 +38,9 @@ from terrascope_br._i18n import _
 from terrascope_br.base import SourceLayer, key
 from terrascope_br.net import SourceError, get
 
+# The core's slider has a play button from the version that added SliderSpec.playing.
+_PLAY_BUTTON = "playing" in getattr(SliderSpec, "__dataclass_fields__", {})
+
 FRAME_URL = "https://www.starnet.iag.usp.br/img_starnet/Radar_USP/pelletron_36km/loop/36km_loop_{index}.png"
 SLOTS = 10  # the site's loop files, 1 to 10
 # Frames seen within the last hour are kept for the slider, at most MAX_FRAMES.
@@ -147,6 +150,7 @@ class RadarLayer(SourceLayer):
         self._index = 0                 # frame the loop is on
         self._last_step = 0.0
         self._pin: float | None = None  # frame time the slider holds (None = follow the loop or the newest)
+        self._playing: bool | None = None  # play button; None = the core's radar animate setting
 
     def stamp_file(self):
         return store.path("chuva_online", "frames.json")
@@ -237,13 +241,18 @@ class RadarLayer(SourceLayer):
         loop's frame while the loop is on, else the newest. Needs items."""
         if self._pin is not None:
             return min(range(len(self.items)), key=lambda i: abs(self.items[i]["time"] - self._pin))
-        if _loop_settings()[0]:
+        if self._is_playing():
             return min(self._index, len(self.items) - 1)
         return len(self.items) - 1
 
+    def _is_playing(self) -> bool:
+        """The frames loop: after the play button, or by the core's radar animate setting
+        until the button is first pressed."""
+        return _loop_settings()[0] if self._playing is None else self._playing
+
     def _advance(self, now: float) -> None:
-        loop, frame_seconds, hold_seconds = _loop_settings()
-        if not (self.enabled and loop) or self._pin is not None or len(self.items) < 2:
+        _loop, frame_seconds, hold_seconds = _loop_settings()
+        if not (self.enabled and self._is_playing()) or self._pin is not None or len(self.items) < 2:
             return  # static: the frame only moves with the slider
         newest = self._index >= len(self.items) - 1
         if now - self._last_step >= (hold_seconds if newest else frame_seconds):
@@ -265,7 +274,28 @@ class RadarLayer(SourceLayer):
         index = self._shown_index()
         minutes = round((self.items[index]["time"] - self.items[newest]["time"]) / 60)
         caption = _("LIVE") if index == newest else f"{minutes:+d}m"
+        if _PLAY_BUTTON:
+            return SliderSpec(_("RADAR"), len(self.items), index, caption, marker=newest, wide=True,
+                              playing=self._is_playing() and self._pin is None)
         return SliderSpec(_("RADAR"), len(self.items), index, caption, marker=newest, wide=True)
+
+    def toggle_slider_play(self) -> None:
+        """Play: the loop goes on from the frame shown (from the oldest when LIVE is shown).
+        Pause: that frame is held (the newest one is held as LIVE, so new frames still show)."""
+        if not self.items:
+            return
+        if self._is_playing() and self._pin is None:
+            shown = self._shown_index()
+            newest = len(self.items) - 1
+            self._pin = None if shown == newest else self.items[shown]["time"]
+            self._playing = False
+        else:
+            shown = self._shown_index()
+            self._index = 0 if shown == len(self.items) - 1 else shown
+            self._pin = None
+            self._playing = True
+            self._last_step = time.time()
+        self.dirty = True
 
     def set_slider(self, index: int) -> None:
         if not self.items:

@@ -75,7 +75,8 @@ The Chuva Online site serves only its last ten frames, as ten files that are rew
 The layer keeps every frame it sees in the last hour and its slider steps through them, as the core's radar slider
 does (`[` and `]`, or the mouse on the slider row; the newest frame is the `LIVE` position). The loop uses the core's
 radar animation settings: `--radar-animate` turns it on, and `frame_seconds` / `frame_hold_last_seconds` under
-`layers.weather.radar` in the config file set the timing.
+`layers.weather.radar` in the config file set the timing. With a core whose slider has a play button, the ▶ after the
+slider's caption (or the space key) plays the loop from the oldest frame and ■ pauses it on the frame shown.
 The history starts with the ten frames of the first fetch (about 30 minutes) and grows with each fetch.
 
 ### Global rain and temperature

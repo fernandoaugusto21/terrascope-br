@@ -75,7 +75,8 @@ quadros novos (sem arquivo histórico). A camada guarda todos os quadros que vê
 percorre, como o deslizador de radar do core (`[` e `]`, ou o mouse na linha do deslizador; o quadro mais recente é a
 posição `LIVE`, `AO VIVO` em pt-BR). A animação usa as configurações de animação do radar do core: `--radar-animate` a
 liga, e `frame_seconds` / `frame_hold_last_seconds` em `layers.weather.radar` no arquivo de configuração definem o
-tempo.
+tempo. Com um core cujo deslizador tem botão de reprodução, o ▶ depois da legenda do deslizador (ou a tecla Espaço) toca
+a animação a partir do quadro mais antigo, e o ■ a pausa no quadro mostrado.
 O histórico começa com os dez quadros da primeira busca (cerca de 30 minutos) e cresce a cada busca.
 
 ### Chuva e temperatura globais
