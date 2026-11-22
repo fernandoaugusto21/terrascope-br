@@ -769,8 +769,9 @@ def station_reading(code: str, latitude: float, longitude: float, now: datetime 
 
 def _summary_now(forecast: list[dict], now: datetime, zone: ZoneInfo = SAO_PAULO_TIME) -> str | None:
     """The words of the running part of today's forecast at the place's own time
-    (stations have no sky reading); None when that part is not in the forecast
-    (INMET has no overnight part, and today's night is not the small hours)."""
+    (stations have no sky reading). A forecast without an overnight part (INMET)
+    gives its morning for the small hours (today's night is the coming evening, not
+    these hours). None when the part to show is not in the forecast."""
     local = now.astimezone(zone)
     today = next((day for day in forecast if day.get("date") == local.date().isoformat()), None)
     if today is None:
@@ -778,7 +779,10 @@ def _summary_now(forecast: list[dict], now: datetime, zone: ZoneInfo = SAO_PAULO
     parts = {part.get("part"): part.get("summary") for part in today.get("periods") or [] if isinstance(part, dict)}
     if not parts:
         return today.get("summary")
-    return parts.get(min(3, max(0, local.hour // 6)))
+    running = min(3, max(0, local.hour // 6))
+    if running == 0 and 0 not in parts:
+        running = 1  # overnight, from a source without that part: the morning
+    return parts.get(running)
 
 
 class FederalProvider(WeatherProvider):
