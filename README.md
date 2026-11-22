@@ -1,3 +1,5 @@
+English | [Português (Brasil)](README.pt-BR.md)
+
 # terrascope-br
 
 Brazilian data layers for [Terrascope](https://github.com/a-shygun/Terrascope), packaged as a plugin. It adds a
