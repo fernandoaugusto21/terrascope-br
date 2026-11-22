@@ -34,7 +34,10 @@ clash with the core's own `terrascope` app; do not install both. To install or u
     scoop install https://github.com/fernandoaugusto21/terrascope-br/releases/latest/download/terrascope-br.json
     scoop uninstall terrascope-br; scoop install <same address>    # to move to a newer build
 
-Only a build of the core's `main` is marked latest; a build of another core branch, tag or commit is a pre-release. The
+Each release is named `0.<N> (<summary>)`: N goes up by one per release, and the summary joins the titles of the pull
+requests this build has and the previous release had not, in the core and here (the previous release's tag names
+the commits it was built from; `packaging/windows/release_name.py`). Only a build of the
+core's `main` is marked latest; a build of another core branch, tag or commit is a pre-release. The
 ten newest builds are kept.
 
 The build also runs when the core's `main` changes: right away when the core's workflow `notify-plugin.yml` has a
