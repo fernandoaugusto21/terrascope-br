@@ -304,6 +304,10 @@ To update the catalogue after changing texts:
 
 The tests read trimmed samples from `tests/data` (see the README there) and do not use the network. They run on every pull request and on `main` (Ubuntu and Windows, `.github/workflows/ci.yml`), against the core's `main`.
 
+## Development and releases
+
+How a change reaches a release, and why `main` merges wait for the checks, is in [`docs/RELEASING.md`](docs/RELEASING.md).
+
 ## Sources and terms
 
 Each source keeps its own terms. [`docs/data-terms.md`](docs/data-terms.md) lists, for each endpoint the plugin

@@ -309,6 +309,10 @@ Para atualizar o catálogo depois de mudar textos:
 Os testes leem amostras reduzidas de `tests/data` (veja o README de lá) e não usam a rede. Eles rodam em todo pull
 request e na `main` (Ubuntu e Windows, `.github/workflows/ci.yml`), contra a `main` do core.
 
+## Desenvolvimento e releases
+
+Como uma mudança chega a uma release, e por que o merge na `main` espera as checagens, está em [`docs/RELEASING.md`](docs/RELEASING.md) (em inglês).
+
 ## Fontes e termos
 
 Cada fonte mantém os seus próprios termos. O [`docs/data-terms.md`](docs/data-terms.md) lista, para cada endpoint que o
