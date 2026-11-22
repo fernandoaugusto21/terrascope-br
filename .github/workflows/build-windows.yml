@@ -164,10 +164,32 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           name: windows-build
           path: release
+
+      - name: Name the release
+        id: title
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          # "0.<N+1> (<pull requests merged since the last release, core and plugin>)".
+          gh release list --repo "$REPO" --limit 200 --json name,publishedAt > "$RUNNER_TEMP/releases.json"
+          since=$(jq -r '[.[].publishedAt] | max // ""' "$RUNNER_TEMP/releases.json")
+          query="is:merged"
+          if [ -n "$since" ]; then query="is:merged merged:>$since"; fi
+          {
+            gh pr list --repo "$CORE_REPO" --state merged --search "$query" --limit 50 --json title,mergedAt
+            gh pr list --repo "$REPO" --state merged --search "$query" --limit 50 --json title,mergedAt
+          } | jq -s 'add | sort_by(.mergedAt)' > "$RUNNER_TEMP/pulls.json"
+          name=$(python3 packaging/windows/release_name.py --releases "$RUNNER_TEMP/releases.json" \
+                 --pulls "$RUNNER_TEMP/pulls.json")
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "release name: $name"
 
       - name: Publish the release
         env:
@@ -175,11 +197,12 @@ jobs:
           TAG: ${{ needs.build.outputs.tag }}
           LATEST: ${{ needs.build.outputs.latest }}
           REPO: ${{ github.repository }}
+          TITLE: ${{ steps.title.outputs.name }}
         run: |
           # Every file in one call: the zip and its manifest appear together.
           gh release create "$TAG" release/* --repo "$REPO" --target "${{ github.sha }}" \
             --latest="$LATEST" --prerelease="$([ "$LATEST" = true ] && echo false || echo true)" \
-            --title "Windows build $TAG" \
+            --title "$TITLE" \
             --notes "terrascope.exe with this plugin; core and plugin commits in the name. Install the newest build of the core's main: scoop install https://github.com/$REPO/releases/latest/download/terrascope-br.json"
 
       - name: Keep the newest builds only
