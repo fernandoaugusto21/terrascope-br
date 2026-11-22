@@ -196,5 +196,5 @@ def test_municipality_legend_keeps_the_national_file_age_when_zoomed_out(cache):
     assert layer.items == [] and layer.data_time is not None
 
 
-def test_the_brasil_tab_zooms_in_to_256():
-    assert tabs.brasil_tabs()[0]["zoom_max"] == 256
+def test_the_brasil_tab_zooms_in_to_1024():
+    assert tabs.brasil_tabs()[0]["zoom_max"] == 1024
