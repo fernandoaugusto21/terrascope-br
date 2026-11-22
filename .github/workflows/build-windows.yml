@@ -1,7 +1,7 @@
 name: Windows build
 
-# A standalone terrascope.exe with this plugin (core from the main branch of
-# fernandoaugusto21/Terrascope), checked, zipped, and published as a GitHub release
+# A standalone terrascope.exe with this plugin, as a PyInstaller --onedir folder (core from the
+# main branch of fernandoaugusto21/Terrascope), checked, zipped, and published as a GitHub release
 # with its Scoop manifest. Pull requests build and check it without publishing.
 
 on:
@@ -113,7 +113,9 @@ jobs:
           PY
           # The entry points live in the packages' metadata: without --copy-metadata
           # the frozen app finds no plugin.
-          pyinstaller --clean --noconfirm --onefile --console --name terrascope \
+          # --onedir: dist/terrascope/ holds terrascope.exe and _internal/. A onefile exe unpacks
+          # all of it to a temp folder on every start and deletes it on every exit.
+          pyinstaller --clean --noconfirm --onedir --console --name terrascope \
             --copy-metadata terrascope --copy-metadata terrascope-br \
             --collect-all terrascope --collect-all terrascope_br \
             --collect-all numpy --collect-all PIL --collect-all yaml --collect-all tzdata \
@@ -122,10 +124,10 @@ jobs:
       - name: Check the executable
         if: steps.names.outputs.skip != 'true'
         run: |
-          dist/terrascope.exe --version
-          dist/terrascope.exe --list-tabs | tee tabs.txt
+          dist/terrascope/terrascope.exe --version
+          dist/terrascope/terrascope.exe --list-tabs | tee tabs.txt
           grep -q "plugin:terrascope-br" tabs.txt
-          dist/terrascope.exe --list-layers | tee layers.txt
+          dist/terrascope/terrascope.exe --list-layers | tee layers.txt
           # The plugin's registered layers (the SP Águas gauges are inactive and must not be).
           for layer in br_ufs br_municipios br_fires br_quakes br_radar br_inmet_alerts br_inundation_cge \
                        br_global_rain br_global_temp br_viario; do
@@ -142,7 +144,10 @@ jobs:
           version="${core_version}-${TAG#windows-}"
           zip="terrascope-br_${version}_windows_x86_64.zip"
           mkdir -p release
-          (cd dist && 7z a -tzip "../release/$zip" terrascope.exe > /dev/null)
+          # The folder's contents go in at the root of the zip, so Scoop installs terrascope.exe
+          # next to _internal/ and needs no extract_dir. The manifest script refuses a zip
+          # without terrascope.exe at its root.
+          (cd dist/terrascope && 7z a -tzip "../../release/$zip" ./* > /dev/null)
           # The manifest's file name is the Scoop app name: "terrascope-br", so it does
           # not clash with the core's own "terrascope" app.
           python packaging/windows/make_scoop_manifest.py --version "$version" --zip "release/$zip" \

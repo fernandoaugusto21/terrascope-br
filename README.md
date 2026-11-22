@@ -30,7 +30,9 @@ When a release with plugin support is out, this line changes to that release.
 
 Each merge into `main` builds a standalone `terrascope.exe` with this plugin and the core's `main` branch, and
 publishes it as a GitHub release (`windows-<core commit>-br<plugin commit>`) with its Scoop manifest
-(`.github/workflows/build-windows.yml`). The Scoop app is `terrascope-br` (it installs `terrascope.exe`), so it does not
+(`.github/workflows/build-windows.yml`). The build is a PyInstaller `--onedir` folder, not a single file: the zip holds
+`terrascope.exe` and its `_internal` folder at the root, so the app starts and exits without unpacking itself into a
+temporary folder each time. The Scoop app is `terrascope-br` (it installs `terrascope.exe`), so it does not
 clash with the core's own `terrascope` app; do not install both. To install or update the newest build:
 
     scoop install https://github.com/fernandoaugusto21/terrascope-br/releases/latest/download/terrascope-br.json
