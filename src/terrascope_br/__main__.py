@@ -21,7 +21,7 @@ PROVIDER_GROUP = "terrascope.weather_providers"
 EXPECTED_PROVIDERS = ("br",)
 EXPECTED_TABS = ("brasil",)
 EXPECTED_LAYERS = ("br_global_rain", "br_global_temp", "br_ufs", "br_municipios", "br_fires", "br_quakes",
-                   "br_gauges", "br_radar", "br_inmet_alerts", "br_inundation_cge")
+                   "br_radar", "br_inmet_alerts", "br_inundation_cge")
 
 
 def _names_registered_by_this_package(group: str) -> set[str]:
@@ -80,6 +80,10 @@ def check() -> list[str]:
         for name in expected:
             if name not in registered:
                 problems.append(f"entry point {group} / {name} is not registered")
+        for name in sorted(registered - set(expected)):
+            # An install made before a layer was taken out still registers it.
+            problems.append(f"entry point {group} / {name} is registered but no longer part of {PACKAGE}: "
+                            f"reinstall {PACKAGE} (pip install -e . in an editable checkout)")
     return problems
 
 

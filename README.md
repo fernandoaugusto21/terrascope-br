@@ -32,14 +32,16 @@ When a release with plugin support is out, this line changes to that release.
 | `br_municipios` | I | IBGE, municipality outlines | once per 30 days | from zoom 8 on; national file up to zoom 32, then one file per state in view |
 | `br_fires` | F | INPE Queimadas | 10 min | hotspots of the last 3 h |
 | `br_quakes` | B | IAG-USP catalogue, or USGS if IAG-USP fails | 30 min | last 30 days, Brazil and neighbours |
-| `br_gauges` | G | SP Águas, rain gauges | 10 min | rain in the last hour, city from the IBGE code |
 | `br_radar` | T | IAG-USP Chuva Online, 36 km radar | 10 min | hidden when the newest frame is over 30 min old |
 | `br_global_rain` | J | RainViewer radar (the core's frame and palette), inside the Brazil outline | 5 min check, a new frame about every 10 min | dBZ; drawn under `br_radar`; nothing is drawn until the IBGE state map is in the cache |
 | `br_global_temp` | M | city temperatures (the core's city layer, with the providers below), cities of Brazil only | 15 min per city | relative colours, as on the WEATHER tab; labels replace the basemap city names in this tab; from zoom 32 on, one label per municipality (see below) |
 | `br_inmet_alerts` | V | INMET, active weather warnings | 30 min | warnings of today and the next days, as areas; hidden when the data is over 1 h old |
 | `br_inundation_cge` | (legend switch) | CGE, flood-risk state of each of the 32 subprefeituras of the city of São Paulo; outlines from GeoSampa | 5 min (outlines: 30 days) | from zoom 16 on; watch / attention / overflow imminent / alert, read from the colours of the CGE alert map (see below); states hidden when over 1 h old |
 
-The municipality names used by the gauges come from the IBGE localities list (kept 30 days).
+The SP Águas rain gauge layer (`br_gauges`) is inactive since 2026-11-22: it is not registered and makes no request.
+Its code stays in `sources/spaguas.py` for later use (`ENABLED`).
+
+The municipality names (weather labels and providers) come from the IBGE localities list, kept 30 days.
 
 ### Radar history
 

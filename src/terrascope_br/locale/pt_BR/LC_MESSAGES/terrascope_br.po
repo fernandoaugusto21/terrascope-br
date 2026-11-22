@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: terrascope-br 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-21 18:11-0300\n"
+"POT-Creation-Date: 2026-11-22 02:34-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: pt_BR\n"
@@ -66,20 +66,16 @@ msgid "off"
 msgstr "desligado"
 
 #: src/terrascope_br/tabs.py:17
-msgid ""
-"Data: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, CGE, RainViewer, Open-"
-"Meteo"
-msgstr ""
-"Dados: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, CGE, RainViewer, Open-"
-"Meteo"
+msgid "Data: IBGE, INPE, IAG-USP, USGS, INMET, CGE, RainViewer, Open-Meteo"
+msgstr "Dados: IBGE, INPE, IAG-USP, USGS, INMET, CGE, RainViewer, Open-Meteo"
 
 #: src/terrascope_br/tabs.py:27
 msgid ""
-"Brazil: state and city outlines, fires, quakes, rain gauges, radar, and "
-"global rain and temperature cropped to Brazil"
+"Brazil: state and city outlines, fires, quakes, radar, and global rain "
+"and temperature cropped to Brazil"
 msgstr ""
-"Brasil: contornos de estados e municípios, focos, sismos, pluviômetros, "
-"radar, e chuva e temperatura globais recortadas no Brasil"
+"Brasil: contornos de estados e municípios, focos, sismos, radar, e chuva "
+"e temperatura globais recortadas no Brasil"
 
 #: src/terrascope_br/sources/cge.py:67
 msgid "watch"
@@ -112,7 +108,7 @@ msgstr "GeoSampa (CC BY-SA 4.0), Prefeitura de São Paulo"
 #: src/terrascope_br/sources/cge.py:389 src/terrascope_br/sources/iag.py:216
 #: src/terrascope_br/sources/iag.py:217 src/terrascope_br/sources/inmet.py:312
 #: src/terrascope_br/sources/inmet.py:314
-#: src/terrascope_br/sources/spaguas.py:131
+#: src/terrascope_br/sources/spaguas.py:144
 msgid "N/A"
 msgstr "n/d"
 
@@ -120,7 +116,7 @@ msgstr "n/d"
 msgid "REGION"
 msgstr "REGIÃO"
 
-#: src/terrascope_br/sources/cge.py:392 src/terrascope_br/sources/ibge.py:300
+#: src/terrascope_br/sources/cge.py:392 src/terrascope_br/sources/ibge.py:308
 msgid "STATE"
 msgstr "ESTADO"
 
@@ -129,7 +125,7 @@ msgid "state"
 msgstr "estado"
 
 #: src/terrascope_br/sources/cge.py:393
-#: src/terrascope_br/sources/spaguas.py:139
+#: src/terrascope_br/sources/spaguas.py:152
 msgid "UPDATED"
 msgstr "ATUALIZADO"
 
@@ -255,15 +251,15 @@ msgstr "LOCAL"
 msgid "POSITION"
 msgstr "POSIÇÃO"
 
-#: src/terrascope_br/sources/ibge.py:299
+#: src/terrascope_br/sources/ibge.py:307
 msgid "IBGE states"
 msgstr "estados do IBGE"
 
-#: src/terrascope_br/sources/ibge.py:308
+#: src/terrascope_br/sources/ibge.py:316
 msgid "IBGE municipalities"
 msgstr "municípios do IBGE"
 
-#: src/terrascope_br/sources/ibge.py:309
+#: src/terrascope_br/sources/ibge.py:317
 msgid "MUNICIPALITY"
 msgstr "MUNICÍPIO"
 
@@ -331,72 +327,72 @@ msgstr "SATÉLITE"
 msgid "AGE"
 msgstr "IDADE"
 
-#: src/terrascope_br/sources/spaguas.py:61
+#: src/terrascope_br/sources/spaguas.py:67
 msgid "unnamed station"
 msgstr "estação sem nome"
 
-#: src/terrascope_br/sources/spaguas.py:62
-#: src/terrascope_br/sources/spaguas.py:63
+#: src/terrascope_br/sources/spaguas.py:68
+#: src/terrascope_br/sources/spaguas.py:69
 msgid "unknown"
 msgstr "desconhecido"
 
-#: src/terrascope_br/sources/spaguas.py:72
+#: src/terrascope_br/sources/spaguas.py:78
 msgid "SP Águas rain gauges, 1 h"
 msgstr "pluviômetros da SP Águas, 1 h"
 
-#: src/terrascope_br/sources/spaguas.py:73
+#: src/terrascope_br/sources/spaguas.py:79
 msgid "RAIN GAUGE"
 msgstr "PLUVIÔMETRO"
 
-#: src/terrascope_br/sources/spaguas.py:120
+#: src/terrascope_br/sources/spaguas.py:133
 msgid "0 mm"
 msgstr "0 mm"
 
-#: src/terrascope_br/sources/spaguas.py:121
+#: src/terrascope_br/sources/spaguas.py:134
 msgid "0-2"
 msgstr "0-2"
 
-#: src/terrascope_br/sources/spaguas.py:122
+#: src/terrascope_br/sources/spaguas.py:135
 msgid "2-10"
 msgstr "2-10"
 
-#: src/terrascope_br/sources/spaguas.py:123
+#: src/terrascope_br/sources/spaguas.py:136
 msgid "10-25"
 msgstr "10-25"
 
-#: src/terrascope_br/sources/spaguas.py:124
+#: src/terrascope_br/sources/spaguas.py:137
 msgid "25+ mm"
 msgstr "25+ mm"
 
-#: src/terrascope_br/sources/spaguas.py:135
+#: src/terrascope_br/sources/spaguas.py:148
 msgid "STATION"
 msgstr "ESTAÇÃO"
 
-#: src/terrascope_br/sources/spaguas.py:136
+#: src/terrascope_br/sources/spaguas.py:149
 msgid "OWNER"
 msgstr "DONO"
 
-#: src/terrascope_br/sources/spaguas.py:137
+#: src/terrascope_br/sources/spaguas.py:150
 msgid "CITY"
 msgstr "MUNICÍPIO"
 
-#: src/terrascope_br/sources/spaguas.py:138
+#: src/terrascope_br/sources/spaguas.py:151
 msgid "LAST HOUR"
 msgstr "ÚLTIMA HORA"
 
-#: src/terrascope_br/sources/weather_providers.py:282
+#: src/terrascope_br/sources/weather_providers.py:312
 msgid "Overnight"
 msgstr "Madrugada"
 
-#: src/terrascope_br/sources/weather_providers.py:282
+#: src/terrascope_br/sources/weather_providers.py:312
 msgid "Morning"
 msgstr "Manhã"
 
-#: src/terrascope_br/sources/weather_providers.py:282
+#: src/terrascope_br/sources/weather_providers.py:312
 msgid "Afternoon"
 msgstr "Tarde"
 
-#: src/terrascope_br/sources/weather_providers.py:282
+#: src/terrascope_br/sources/weather_providers.py:312
 msgid "Night"
 msgstr "Noite"
 

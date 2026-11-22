@@ -26,7 +26,7 @@ Certainty:
 | INPE Queimadas | index `https://dataserver-coids.inpe.br/queimadas/queimadas/focos/csv/10min/` and the `focos_10min_YYYYMMDD_HHMM.csv` files in it | `sources/inpe.py` |
 | IAG-USP seismology catalogue (FDSN event service) | `https://moho.iag.usp.br/fdsnws/event/1/query` (parameters built by `query_url()`) | `sources/iag.py` |
 | USGS earthquake feed (fallback) | `https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson` | `sources/iag.py` |
-| SP Águas measurements (SIBH) | `https://apps.spaguas.sp.gov.br/sibh/api/v2/measurements/now?station_type_id=2&hours=1` | `sources/spaguas.py` |
+| SP Águas measurements (SIBH) — **inactive since 2026-11-22, not requested** | `https://apps.spaguas.sp.gov.br/sibh/api/v2/measurements/now?station_type_id=2&hours=1` | `sources/spaguas.py` |
 | IAG-USP Chuva Online radar | `https://www.starnet.iag.usp.br/img_starnet/Radar_USP/pelletron_36km/loop/36km_loop_{index}.png` (10 frames) | `sources/chuva_online.py` |
 | CGE São Paulo (section 7) | `https://www.cgesp.org/v3/previsao_estendida.jsp`, `https://www.cgesp.org/v3/estacao.jsp?POSTO=503` | `sources/weather_providers.py` |
 | CGE São Paulo alert map (section 7) | `https://www.cgesp.org/v3/mapas.jsp?arq=alertas`, `https://www.cgesp.org/cgesp/mapa_sp_geoserver.png` | `sources/cge.py` |
@@ -119,6 +119,9 @@ Notes:
 - The app fetches the feed only when IAG-USP fails, at most once per 30-minute refresh.
 
 ## 5. SP Águas rain gauges (SIBH measurements API)
+
+**Inactive since 2026-11-22.** The layer is not registered and makes no request (`spaguas.ENABLED = False`); the
+notes below are kept for when the source is wanted again.
 
 | Question | Answer | Certainty | Source |
 |---|---|---|---|
@@ -242,6 +245,8 @@ The BRASIL tab shows its credits in one line at the bottom-left of the map, and 
 - 2026-11-14: `Data: IBGE, INPE, IAG-USP, SP Águas` became `Data: IBGE, INPE, IAG-USP, SP Águas, USGS` (USGS was
   missing although the earthquake layer uses it as fallback).
 - 2026-11-21: `Data: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, CGE, RainViewer, Open-Meteo` (pt_BR: `Dados: ...`).
+- 2026-11-22: `Data: IBGE, INPE, IAG-USP, USGS, INMET, CGE, RainViewer, Open-Meteo`: SP Águas left with its inactive
+  layer (section 5).
 
 Sources shown only now and then are named while they show, on their own lines above the tab's line (with a core that
 has `Layer.credits`):
