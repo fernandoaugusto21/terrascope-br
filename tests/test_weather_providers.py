@@ -456,6 +456,16 @@ def test_the_time_and_part_of_the_day_are_the_places_own():
     assert wp.local_zone("3518800").key == "America/Sao_Paulo" and wp.local_zone("2605459").key == "America/Noronha"
     days = wp.parse_inmet(json.loads(FORECAST), "3518800")
     small_hours = datetime(2026, 11, 21, 5, 0, tzinfo=timezone.utc)   # 02:00 in São Paulo
-    assert wp._summary_now(days, small_hours) is None
+    morning = next(part for part in days[0]["periods"] if part["part"] == 1)
+    assert wp._summary_now(days, small_hours) == morning["summary"]          # INMET has no overnight part
     afternoon = datetime(2026, 11, 21, 17, 0, tzinfo=timezone.utc)    # 14:00
     assert wp._summary_now(days, afternoon) == days[0]["periods"][1]["summary"]
+
+
+def test_a_source_with_an_overnight_part_keeps_it():
+    days = [{"date": "2026-11-22", "periods": [
+        {"part": 0, "summary": "Céu claro"}, {"part": 1, "summary": "Nublado"}]}]
+    small_hours = datetime(2026, 11, 22, 4, 0, tzinfo=timezone.utc)   # 01:00 in São Paulo
+    assert wp._summary_now(days, small_hours) == "Céu claro"
+    no_morning = [{"date": "2026-11-22", "periods": [{"part": 2, "summary": "Chuva"}]}]
+    assert wp._summary_now(no_morning, small_hours) is None

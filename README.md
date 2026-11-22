@@ -143,7 +143,7 @@ station, for example `INMET A701 · forecast INMET`.
   key the towns that share a station share its answer for 10 minutes.
 - The time shown is the place's own (by state: Acre, Amazonas, Rondônia, Roraima, Mato Grosso and Mato Grosso do Sul
   are behind São Paulo), and the conditions words come from the part of today's forecast running there; INMET has no
-  overnight part, so from midnight to 6 h a station reading has no words.
+  overnight part, so from midnight to 6 h the words of today's morning stand in.
 
 How to get a key. INMET publishes no sign-up page; the API manual's address
 (`portal.inmet.gov.br/manual/manual-de-uso-da-api-estações`) answered HTTP 404 on 2026-11-21. The channel used by
