@@ -55,7 +55,7 @@ from terrascope.layers.weather.radar import (
 )
 
 from terrascope_br._i18n import _
-from terrascope_br.base import key as legend_key, utc_text
+from terrascope_br.base import key as legend_key, short_error, utc_text
 from terrascope_br.geo import view_key
 from terrascope_br.net import SourceError
 from terrascope_br.sources import ibge, municipalities
@@ -235,9 +235,9 @@ class GlobalRainLayer(Layer):
         if current_brazil_grid() is None:
             return _("waiting for the Brazil outline (IBGE)")
         if frame is None:
-            return _("unavailable: %s") % error if error else _("no data yet")
+            return _("unavailable: %s") % short_error(error) if error else _("no data yet")
         if error:
-            return _("update failed: %s") % error
+            return _("update failed: %s") % short_error(error)
         if time.time() - frame["time"] > STALE_SECONDS:
             return _("no update since %s") % utc_text(frame["time"])
         return ""
