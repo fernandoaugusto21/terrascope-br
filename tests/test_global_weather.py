@@ -263,3 +263,10 @@ def test_temperature_legend_is_a_toggle_and_a_relative_key(offline):
     assert toggle.text == "City temperature, relative (Open-Meteo)"
     colours = [colour for _glyph, colour, _label in key.legend_items]
     assert colours == [CITY_CONFIG["temperature_cold_color"], CITY_CONFIG["temperature_hot_color"], CITY_CONFIG["color"]]
+
+
+def test_the_brazil_temperatures_are_sovereign_over_their_cities():
+    layer = gw.GlobalTempLayer()
+    assert layer.weather_sovereign is True
+    if hasattr(layer.weather, "_sovereign"):   # a core with cache owners
+        assert layer.weather._sovereign and layer.weather._owner == "br_global_temp"
