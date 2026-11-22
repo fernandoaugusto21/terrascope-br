@@ -43,6 +43,7 @@ br_global_rain = "terrascope_br.sources.global_weather:GlobalRainLayer"
 br_global_temp = "terrascope_br.sources.global_weather:GlobalTempLayer"
 br_ufs = "terrascope_br.sources.ibge:StateOutlinesLayer"
 br_municipios = "terrascope_br.sources.ibge:MunicipalityOutlinesLayer"
+br_viario = "terrascope_br.sources.roads:RoadsLayer"
 br_fires = "terrascope_br.sources.inpe:FireLayer"
 br_quakes = "terrascope_br.sources.iag:QuakeLayer"
 # br_gauges (terrascope_br.sources.spaguas:RainGaugeLayer) is inactive: see spaguas.ENABLED.

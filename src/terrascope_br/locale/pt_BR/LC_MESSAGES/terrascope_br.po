@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: terrascope-br 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-22 14:50-0300\n"
+"POT-Creation-Date: 2026-11-22 18:17-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: pt_BR\n"
@@ -20,7 +20,8 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: src/terrascope_br/base.py:113 src/terrascope_br/sources/global_weather.py:238
+#: src/terrascope_br/base.py:113
+#: src/terrascope_br/sources/global_weather.py:238
 #, python-format
 msgid "unavailable: %s"
 msgstr "indisponível: %s"
@@ -30,16 +31,19 @@ msgstr "indisponível: %s"
 msgid "cache unreadable: %s"
 msgstr "cache ilegível: %s"
 
-#: src/terrascope_br/base.py:116 src/terrascope_br/sources/global_weather.py:238
+#: src/terrascope_br/base.py:116
+#: src/terrascope_br/sources/global_weather.py:238
 msgid "no data yet"
 msgstr "sem dados ainda"
 
-#: src/terrascope_br/base.py:118 src/terrascope_br/sources/global_weather.py:240
+#: src/terrascope_br/base.py:118
+#: src/terrascope_br/sources/global_weather.py:240
 #, python-format
 msgid "update failed: %s"
 msgstr "falha na atualização: %s"
 
-#: src/terrascope_br/base.py:120 src/terrascope_br/sources/global_weather.py:242
+#: src/terrascope_br/base.py:120
+#: src/terrascope_br/sources/global_weather.py:242
 #, python-format
 msgid "no update since %s"
 msgstr "sem atualização desde %s"
@@ -49,194 +53,207 @@ msgstr "sem atualização desde %s"
 msgid "updated %s"
 msgstr "atualizado %s"
 
-#: src/terrascope_br/base.py:169 src/terrascope_br/sources/global_weather.py:250
+#: src/terrascope_br/base.py:169
+#: src/terrascope_br/sources/global_weather.py:250
 #: src/terrascope_br/sources/global_weather.py:417
 msgid "on"
 msgstr "ligado"
 
-#: src/terrascope_br/base.py:169 src/terrascope_br/sources/global_weather.py:250
+#: src/terrascope_br/base.py:169
+#: src/terrascope_br/sources/global_weather.py:250
 #: src/terrascope_br/sources/global_weather.py:417
 msgid "off"
 msgstr "desligado"
 
 #: src/terrascope_br/tabs.py:17
-msgid "Data: IBGE, INPE, IAG-USP, USGS, INMET, CGE, RainViewer, Open-Meteo"
-msgstr "Dados: IBGE, INPE, IAG-USP, USGS, INMET, CGE, RainViewer, Open-Meteo"
+msgid ""
+"Data: IBGE, INPE, IAG-USP, USGS, INMET, CGE, RainViewer, Open-Meteo, "
+"OpenStreetMap"
+msgstr "Dados: IBGE, INPE, IAG-USP, USGS, INMET, CGE, RainViewer, Open-Meteo, "
+"OpenStreetMap"
 
 #: src/terrascope_br/tabs.py:27
 msgid ""
-"Brazil: state and city outlines, fires, quakes, radar, and global rain and "
-"temperature cropped to Brazil"
+"Brazil: state and city outlines, fires, quakes, radar, and global rain "
+"and temperature cropped to Brazil"
 msgstr ""
-"Brasil: contornos de estados e municípios, focos, sismos, radar, e chuva e "
-"temperatura globais recortadas no Brasil"
+"Brasil: contornos de estados e municípios, focos, sismos, radar, e chuva "
+"e temperatura globais recortadas no Brasil"
 
-#: src/terrascope_br/sources/cge.py:82
+#: src/terrascope_br/sources/cge.py:83
 msgid "watch"
 msgstr "observação"
 
-#: src/terrascope_br/sources/cge.py:83
+#: src/terrascope_br/sources/cge.py:84
 msgid "attention"
 msgstr "atenção"
 
-#: src/terrascope_br/sources/cge.py:84
+#: src/terrascope_br/sources/cge.py:85
 msgid "overflow imminent"
 msgstr "iminência de transbordamento"
 
-#: src/terrascope_br/sources/cge.py:85
+#: src/terrascope_br/sources/cge.py:86
 msgid "alert"
 msgstr "alerta"
 
-#: src/terrascope_br/sources/cge.py:274
+#: src/terrascope_br/sources/cge.py:275 src/terrascope_br/sources/cge.py:282
 msgid "Centre"
 msgstr "Centro"
 
-#: src/terrascope_br/sources/cge.py:275
+#: src/terrascope_br/sources/cge.py:276 src/terrascope_br/sources/cge.py:282
 msgid "North zone"
 msgstr "Zona Norte"
 
-#: src/terrascope_br/sources/cge.py:276
+#: src/terrascope_br/sources/cge.py:277 src/terrascope_br/sources/cge.py:282
 msgid "West zone"
 msgstr "Zona Oeste"
 
-#: src/terrascope_br/sources/cge.py:277
+#: src/terrascope_br/sources/cge.py:278 src/terrascope_br/sources/cge.py:283
 msgid "South zone"
 msgstr "Zona Sul"
 
-#: src/terrascope_br/sources/cge.py:278
+#: src/terrascope_br/sources/cge.py:279 src/terrascope_br/sources/cge.py:283
 msgid "East zone"
 msgstr "Zona Leste"
 
-#: src/terrascope_br/sources/cge.py:389
+#: src/terrascope_br/sources/cge.py:400
 msgid "needs a newer Terrascope"
 msgstr "requer um Terrascope mais novo"
 
-#: src/terrascope_br/sources/cge.py:396
+#: src/terrascope_br/sources/cge.py:407
 msgid "no CGE station in this region"
 msgstr "sem estação do CGE nesta região"
 
-#: src/terrascope_br/sources/cge.py:405
+#: src/terrascope_br/sources/cge.py:416
 #, python-format
 msgid "rain %s"
 msgstr "chuva %s"
 
-#: src/terrascope_br/sources/cge.py:407
+#: src/terrascope_br/sources/cge.py:418
 #, python-format
 msgid "wind %s"
 msgstr "vento %s"
 
-#: src/terrascope_br/sources/cge.py:410
+#: src/terrascope_br/sources/cge.py:421
 msgid "station unavailable"
 msgstr "estação indisponível"
 
-#: src/terrascope_br/sources/cge.py:413
+#: src/terrascope_br/sources/cge.py:424
 msgid "today"
 msgstr "hoje"
 
-#: src/terrascope_br/sources/cge.py:413
+#: src/terrascope_br/sources/cge.py:424
 msgid "tomorrow"
 msgstr "amanhã"
 
-#: src/terrascope_br/sources/cge.py:417
+#: src/terrascope_br/sources/cge.py:431
 msgid "(whole city: the CGE gives no forecast by region)"
 msgstr "(cidade inteira: o CGE não dá previsão por região)"
 
-#: src/terrascope_br/sources/cge.py:418
+#: src/terrascope_br/sources/cge.py:432
 msgid "forecast unavailable"
 msgstr "previsão indisponível"
 
-#: src/terrascope_br/sources/cge.py:440
+#: src/terrascope_br/sources/cge.py:454
 msgid "CGE flood risk, São Paulo city"
 msgstr "alagamentos do CGE, cidade de São Paulo"
 
-#: src/terrascope_br/sources/cge.py:441
+#: src/terrascope_br/sources/cge.py:455
 msgid "CGE REGION"
 msgstr "REGIÃO DO CGE"
 
-#: src/terrascope_br/sources/cge.py:645
+#: src/terrascope_br/sources/cge.py:673
 msgid "GeoSampa (CC BY-SA 4.0), City of São Paulo"
 msgstr "GeoSampa (CC BY-SA 4.0), Prefeitura de São Paulo"
 
-#: src/terrascope_br/sources/cge.py:654
+#: src/terrascope_br/sources/cge.py:682
 msgid "≈ flood, passable"
 msgstr "≈ alagamento, transitável"
 
-#: src/terrascope_br/sources/cge.py:654
+#: src/terrascope_br/sources/cge.py:682
 msgid "≈ flood, impassable"
 msgstr "≈ alagamento, intransitável"
 
-#: src/terrascope_br/sources/cge.py:664 src/terrascope_br/sources/cge.py:679
+#: src/terrascope_br/sources/cge.py:692 src/terrascope_br/sources/cge.py:707
 #: src/terrascope_br/sources/iag.py:216 src/terrascope_br/sources/iag.py:217
-#: src/terrascope_br/sources/inmet.py:312 src/terrascope_br/sources/inmet.py:314
+#: src/terrascope_br/sources/inmet.py:312
+#: src/terrascope_br/sources/inmet.py:314
 #: src/terrascope_br/sources/spaguas.py:144
 msgid "N/A"
 msgstr "n/d"
 
-#: src/terrascope_br/sources/cge.py:665
+#: src/terrascope_br/sources/cge.py:693
 msgid "REGION"
 msgstr "REGIÃO"
 
-#: src/terrascope_br/sources/cge.py:667
+#: src/terrascope_br/sources/cge.py:695
 msgid "ZONE"
 msgstr "ZONA"
 
-#: src/terrascope_br/sources/cge.py:668 src/terrascope_br/sources/ibge.py:308
+#: src/terrascope_br/sources/cge.py:696 src/terrascope_br/sources/ibge.py:308
 msgid "STATE"
 msgstr "ESTADO"
 
-#: src/terrascope_br/sources/cge.py:668
+#: src/terrascope_br/sources/cge.py:696
 msgid "state"
 msgstr "estado"
 
-#: src/terrascope_br/sources/cge.py:671 src/terrascope_br/sources/spaguas.py:148
+#: src/terrascope_br/sources/cge.py:699
+#: src/terrascope_br/sources/spaguas.py:148
 msgid "STATION"
 msgstr "ESTAÇÃO"
 
-#: src/terrascope_br/sources/cge.py:671 src/terrascope_br/sources/cge.py:672
+#: src/terrascope_br/sources/cge.py:699 src/terrascope_br/sources/cge.py:700
 msgid "loading…"
 msgstr "carregando…"
 
-#: src/terrascope_br/sources/cge.py:672
+#: src/terrascope_br/sources/cge.py:700
 msgid "FORECAST"
 msgstr "PREVISÃO"
 
-#: src/terrascope_br/sources/cge.py:673 src/terrascope_br/sources/spaguas.py:152
+#: src/terrascope_br/sources/cge.py:701
+#: src/terrascope_br/sources/spaguas.py:152
 msgid "UPDATED"
 msgstr "ATUALIZADO"
 
-#: src/terrascope_br/sources/cge.py:674 src/terrascope_br/sources/iag.py:219
+#: src/terrascope_br/sources/cge.py:702 src/terrascope_br/sources/iag.py:219
 msgid "SOURCE"
 msgstr "FONTE"
 
-#: src/terrascope_br/sources/cge.py:679 src/terrascope_br/sources/cge.py:683
-#: src/terrascope_br/sources/cge.py:684
+#: src/terrascope_br/sources/cge.py:707 src/terrascope_br/sources/cge.py:711
+#: src/terrascope_br/sources/cge.py:712
 msgid "FLOODS"
 msgstr "ALAGAMENTOS"
 
-#: src/terrascope_br/sources/cge.py:683
+#: src/terrascope_br/sources/cge.py:711
 msgid "none today"
 msgstr "nenhum hoje"
 
-#: src/terrascope_br/sources/cge.py:684
+#: src/terrascope_br/sources/cge.py:712
 #, python-format
 msgid "%(active)d active · %(today)d today"
 msgstr "ativos: %(active)d · hoje: %(today)d"
 
-#: src/terrascope_br/sources/cge.py:688
+#: src/terrascope_br/sources/cge.py:717
 msgid "impassable"
 msgstr "intransitável"
 
-#: src/terrascope_br/sources/cge.py:688
+#: src/terrascope_br/sources/cge.py:717
 msgid "passable"
 msgstr "transitável"
 
-#: src/terrascope_br/sources/cge.py:689
+#: src/terrascope_br/sources/cge.py:718
 msgid "(over)"
 msgstr "(encerrado)"
 
-#: src/terrascope_br/sources/cge.py:705
+#: src/terrascope_br/sources/cge.py:734
 msgid "offline"
 msgstr "sem conexão"
+
+#: src/terrascope_br/sources/cge.py:743
+#, fuzzy, python-format
+msgid "unavailable"
+msgstr "indisponível: %s"
 
 #: src/terrascope_br/sources/chuva_online.py:138
 msgid "Chuva Online radar, 36 km"
@@ -432,11 +449,44 @@ msgstr "SATÉLITE"
 msgid "AGE"
 msgstr "IDADE"
 
+#: src/terrascope_br/sources/roads.py:55
+msgid "motorway"
+msgstr "autopista"
+
+#: src/terrascope_br/sources/roads.py:56
+msgid "trunk road"
+msgstr "via expressa"
+
+#: src/terrascope_br/sources/roads.py:57
+msgid "primary"
+msgstr "via primária"
+
+#: src/terrascope_br/sources/roads.py:58
+msgid "secondary"
+msgstr "via secundária"
+
+#: src/terrascope_br/sources/roads.py:59
+msgid "tertiary"
+msgstr "via terciária"
+
+#: src/terrascope_br/sources/roads.py:60
+msgid "local streets"
+msgstr "ruas locais"
+
+#: src/terrascope_br/sources/roads.py:82
+msgid "Roads (OpenStreetMap)"
+msgstr "Viário (OpenStreetMap)"
+
+#: src/terrascope_br/sources/roads.py:83
+msgid "ROAD"
+msgstr "VIA"
+
 #: src/terrascope_br/sources/spaguas.py:67
 msgid "unnamed station"
 msgstr "estação sem nome"
 
-#: src/terrascope_br/sources/spaguas.py:68 src/terrascope_br/sources/spaguas.py:69
+#: src/terrascope_br/sources/spaguas.py:68
+#: src/terrascope_br/sources/spaguas.py:69
 msgid "unknown"
 msgstr "desconhecido"
 
@@ -498,30 +548,37 @@ msgstr "Noite"
 
 #~ msgid "Brazil: state and city outlines, fires, quakes, rain gauges and radar"
 #~ msgstr ""
-#~ "Brasil: contornos de estados e municípios,"
-#~ " focos, sismos, pluviômetros e radar"
+#~ "Brasil: contornos de estados e "
+#~ "municípios, focos, sismos, pluviômetros e "
+#~ "radar"
 
 #~ msgid "Data: IBGE, INPE, IAG-USP, SP Águas, INMET"
 #~ msgstr "Dados: IBGE, INPE, IAG-USP, SP Águas, INMET"
 
-#~ msgid "Data: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, RainViewer, Open-Meteo"
-#~ msgstr "Dados: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, RainViewer, Open-Meteo"
-
 #~ msgid ""
-#~ "Data: IBGE, INPE, IAG-USP, SP Águas,"
-#~ " USGS, INMET, CGE, RainViewer, Open-"
+#~ "Data: IBGE, INPE, IAG-USP, SP "
+#~ "Águas, USGS, INMET, RainViewer, Open-"
 #~ "Meteo"
 #~ msgstr ""
-#~ "Dados: IBGE, INPE, IAG-USP, SP Águas,"
-#~ " USGS, INMET, CGE, RainViewer, Open-"
+#~ "Dados: IBGE, INPE, IAG-USP, SP "
+#~ "Águas, USGS, INMET, RainViewer, Open-"
 #~ "Meteo"
 
 #~ msgid ""
-#~ "Data: IBGE, INPE, IAG-USP, SP Águas,"
-#~ " USGS, INMET, CGE, GeoSampa, RainViewer, "
+#~ "Data: IBGE, INPE, IAG-USP, SP "
+#~ "Águas, USGS, INMET, CGE, RainViewer, "
 #~ "Open-Meteo"
 #~ msgstr ""
-#~ "Dados: IBGE, INPE, IAG-USP, SP Águas,"
-#~ " USGS, INMET, CGE, GeoSampa, RainViewer, "
+#~ "Dados: IBGE, INPE, IAG-USP, SP "
+#~ "Águas, USGS, INMET, CGE, RainViewer, "
 #~ "Open-Meteo"
+
+#~ msgid ""
+#~ "Data: IBGE, INPE, IAG-USP, SP "
+#~ "Águas, USGS, INMET, CGE, GeoSampa, "
+#~ "RainViewer, Open-Meteo"
+#~ msgstr ""
+#~ "Dados: IBGE, INPE, IAG-USP, SP "
+#~ "Águas, USGS, INMET, CGE, GeoSampa, "
+#~ "RainViewer, Open-Meteo"
 

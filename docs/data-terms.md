@@ -229,6 +229,30 @@ Notes:
   source and the licence while the regions are drawn: "GeoSampa (CC BY-SA 4.0), City of São Paulo" (licence first, so
   a narrow map cuts the rest).
 
+## 11. OpenStreetMap (road network, `br_viario`)
+
+Read on 2026-11-22 (fetched pages: the copyright page and the API usage policy). The plugin does not read OpenStreetMap
+at run time: a generator (`packaging/roads/build_roads.py`) reads the roads of the Greater São Paulo box from the
+Overpass API (a sequence of tile queries) and publishes the simplified result as a release asset, which the layer
+downloads once a week at most. The published file is a derived database.
+
+| Question | Answer | Certainty | Source |
+|---|---|---|---|
+| May free software consume it? | Yes, under the Open Database License (ODbL): the data is free to use, and derived databases may be distributed. | high | [openstreetmap.org/copyright](https://www.openstreetmap.org/copyright), fetched 2026-11-22 |
+| Attribution? | "Provide credit to OpenStreetMap by displaying our attribution notice." The data is to be made clear as available under the ODbL, with a link to the licence. | high | same page, fetched 2026-11-22 |
+| Share-alike | "If you alter or build upon our data, you may distribute the result only under the same license." The road file is therefore distributed under the ODbL, with its attribution (the `meta` entry of the file and the release notes). | high | same page, fetched 2026-11-22 |
+| Request limits | Overpass has its own limits, which were not read here (the page says so). The API usage policy asks for at most 2 download threads and says large or frequent users should use the planet or extract downloads. The generator makes one request at a time, with a pause of 2 s between tiles, and retries on errors; it runs weekly at most, and a rebuild is skipped when the cache is fresh. | high (API policy); none (Overpass own rules) | [operations.osmfoundation.org API usage policy](https://operations.osmfoundation.org/policies/api/), fetched 2026-11-22 |
+| Commercial use | Permitted by the ODbL with the same conditions. | high | copyright page, fetched 2026-11-22 |
+| Caching | The cache copy is for the user's own use; the same share-alike conditions apply to any copy passed on. | medium | copyright page, fetched 2026-11-22 |
+
+Notes:
+
+- The release asset is a derived database (a simplified and clipped extract of the roads). It is published with
+  `© OpenStreetMap contributors (ODbL 1.0)` in its meta entry and in the release notes.
+- The core's map always credits "© OpenStreetMap contributors" (see the attribution section below).
+- A Geofabrik extract (`--source pbf`) is the better source for a regular build, because it is a bulk download and
+  does not load the Overpass service; the generator can read one. The Overpass path is kept for a build without one.
+
 ## Cross-source points
 
 - Attribution is an open-data condition only where a licence says so. Of the sources above, the IBGE and INPE pages give
@@ -248,6 +272,8 @@ The BRASIL tab shows its credits in one line at the bottom-left of the map, and 
 - 2026-11-21: `Data: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, CGE, RainViewer, Open-Meteo` (pt_BR: `Dados: ...`).
 - 2026-11-22: `Data: IBGE, INPE, IAG-USP, USGS, INMET, CGE, RainViewer, Open-Meteo`: SP Águas left with its inactive
   layer (section 5).
+- 2026-11-22: `Data: IBGE, INPE, IAG-USP, USGS, INMET, CGE, RainViewer, Open-Meteo, OpenStreetMap` (the road layer,
+  section 11).
 
 Sources shown only now and then are named while they show, on their own lines above the tab's line (with a core that
 has `Layer.credits`):
