@@ -115,13 +115,16 @@ Each one needs a visual equivalence check (same lit Braille cells, or a document
 
 ## Levels of detail (per-state files)
 
-Since the BRASIL tab zooms in to 256, the outlines change source with the zoom (see the README, "Home view and
+Since the BRASIL tab zooms in to 1024 (256 until 2026-11-22), the outlines change source with the zoom (see the README, "Home view and
 zoom"). Cost of the detailed files, measured the same way (108 x 58 cells, centre on the city of São Paulo, median of
 9 frames):
 
 | File | Size | Rings | Points | Parse | Zoom 64 | 128 | 256 |
 |---|---|---|---|---|---|---|---|
 | São Paulo municipalities, `maxima` | 4.9 MB | 690 | 222,324 | 0.7 s | 6.5 ms | 3.7 ms | 2.1 ms |
+
+Past 256 the file stays `maxima` and a frame draws fewer rings: 1.9 ms at 256, 1.3 ms at 512 and 1.1 ms at 1024
+(108 x 58 cells over the city of São Paulo, median of 9 frames, measured on 2026-11-22).
 | Brazil municipalities, `intermediaria` (not used: for comparison) | 12.3 MB | 5,661 | 545,562 | 1.8 s | 6.5 ms | 4.8 ms | 4.2 ms |
 
 Zoomed in, only a few rings touch the view, so the detailed files are cheap to draw. The cost is in the parse and in

@@ -182,7 +182,7 @@ Natural Earth cities at every zoom.
 The BRASIL tab sets `view: {lat: -14, lon: -52, zoom: 3}`, so the map opens over Brazil. The view is applied each time
 the tab is opened; see the plugin section of the Terrascope README.
 
-The tab also sets `zoom_max: 1024`, the most a tab may allow and 16 times closer than the world map (64): at 1024 one
+The tab also sets `zoom_max: 1024`, the core's default limit for a tab and 16 times closer than the world map (64): at 1024 one
 braille dot is about 65 m. The IBGE outlines follow the zoom so that the detail matches the dots, up to 256:
 
 | Zoom | State and municipality outlines | 1 dot (108 x 58 cells) |
