@@ -331,14 +331,24 @@ def _view(zoom, lon=SP_LON, lat=SP_LAT):
     return View(lon, lat, zoom, 108, 58)
 
 
-def _colours(markers):
-    return {marker.color for marker in markers}
+def _cells(render):
+    """The drawn cells, (x, y, colour, glyph), from the line layers (a core with
+    LayerRender.line_layers) or from the markers (an older core)."""
+    cells = [(marker.x, marker.y, marker.color, marker.glyph) for marker in render.markers]
+    for lines, colour in getattr(render, "line_layers", None) or ():
+        for y, row in enumerate(lines):
+            cells += [(x, y, colour, char) for x, char in enumerate(row) if char != "⠀"]
+    return cells
+
+
+def _colours(cells):
+    return {cell[2] for cell in cells}
 
 
 def test_nothing_drawn_while_off(cache, tmp_path):
     layer = _layer_with(tmp_path, cache, {"motorway": [_line([(-46.7, -23.55), (-46.5, -23.55)])]})
     layer.shown = False
-    assert layer.render(_view(512)).markers == []
+    assert _cells(layer.render(_view(512))) == []
 
 
 def test_classes_are_drawn_from_their_zoom_only(cache, tmp_path):
@@ -347,9 +357,9 @@ def test_classes_are_drawn_from_their_zoom_only(cache, tmp_path):
         "residential": [_line([(-46.75, -23.60), (-46.50, -23.60)])],
     }
     layer = _layer_with(tmp_path, cache, lines)
-    at_256 = layer.render(_view(256)).markers
+    at_256 = _cells(layer.render(_view(256)))
     assert _colours(at_256) == {roads.COLOURS["motorway"]}
-    at_512 = layer.render(_view(512)).markers
+    at_512 = _cells(layer.render(_view(512)))
     assert roads.COLOURS["residential"] in _colours(at_512)
     assert roads.COLOURS["motorway"] in _colours(at_512)
 
@@ -357,30 +367,30 @@ def test_classes_are_drawn_from_their_zoom_only(cache, tmp_path):
 def test_a_class_has_its_own_colour_and_glyphs_are_braille(cache, tmp_path):
     layer = _layer_with(tmp_path, cache, {"motorway": [_line([(-46.70, -23.55), (-46.55, -23.55)])],
                                           "tertiary": [_line([(-46.70, -23.56), (-46.55, -23.56)])]})
-    markers = layer.render(_view(512)).markers
+    markers = _cells(layer.render(_view(512)))
     assert markers
-    for marker in markers:
-        assert "⠁" <= marker.glyph <= "⣿"
+    for cell in markers:
+        assert "⠁" <= cell[3] <= "⣿"
     assert _colours(markers) == {roads.COLOURS["motorway"], roads.COLOURS["tertiary"]}
 
 
 def test_only_the_roads_in_view_are_drawn(cache, tmp_path):
     far = _line([(-44.0, -22.0), (-43.9, -22.0)])       # far outside the view of São Paulo
     layer = _layer_with(tmp_path, cache, {"motorway": [far]})
-    assert layer.render(_view(512)).markers == []
+    assert _cells(layer.render(_view(512))) == []
     near = _line([(-46.70, -23.55), (-46.55, -23.55)])
     layer = _layer_with(tmp_path, cache, {"motorway": [near, far]})
-    rendered = layer.render(_view(512)).markers
-    assert rendered and all(0 <= marker.x < 108 and 0 <= marker.y < 58 for marker in rendered)
+    rendered = _cells(layer.render(_view(512)))
+    assert rendered and all(0 <= cell[0] < 108 and 0 <= cell[1] < 58 for cell in rendered)
 
 
 def test_a_cell_shows_one_class_colour(cache, tmp_path):
     crossing = {"motorway": [_line([(-46.70, -23.55), (-46.55, -23.55)])],
                 "residential": [_line([(-46.70, -23.55), (-46.55, -23.55)])]}
     layer = _layer_with(tmp_path, cache, crossing)
-    markers = layer.render(_view(512)).markers
-    cells = [(marker.x, marker.y) for marker in markers]
-    assert len(cells) == len(set(cells))     # one marker per cell
+    markers = _cells(layer.render(_view(512)))
+    cells = [(cell[0], cell[1]) for cell in markers]
+    assert len(cells) == len(set(cells))     # one class per cell
 
 
 def test_legend_lists_the_classes_and_is_switched_by_its_line(cache, tmp_path):
@@ -402,7 +412,7 @@ def test_hit_test_selects_nothing(cache, tmp_path):
 
 def test_zoom_outside_the_layer_draws_nothing(cache, tmp_path):
     layer = _layer_with(tmp_path, cache, {"motorway": [_line([(-46.70, -23.55), (-46.55, -23.55)])]})
-    assert layer.render(_view(4)).markers == []
+    assert _cells(layer.render(_view(4))) == []
 
 
 def test_pbf_reader_keeps_the_roads_with_a_node_in_the_box(tmp_path):
@@ -450,3 +460,73 @@ def test_legend_rows_fit_a_narrow_width(cache, tmp_path, language):
         assert all(_row_width(row) <= 32 for row in rows), [_row_width(row) for row in rows]
     finally:
         i18n.activate("en")
+
+
+def test_with_line_layers_the_roads_are_lines_one_colour_per_class(cache, tmp_path):
+    if not roads._LINE_LAYERS:
+        pytest.skip("the core has no LayerRender.line_layers")
+    layer = _layer_with(tmp_path, cache, {"motorway": [_line([(-46.70, -23.55), (-46.55, -23.55)])],
+                                          "tertiary": [_line([(-46.70, -23.56), (-46.55, -23.56)])]})
+    render = layer.render(_view(512))
+    assert render.markers == []          # lines: the IBGE outlines drawn after this layer cover them
+    assert [colour for _lines, colour in render.line_layers] == [roads.COLOURS["motorway"], roads.COLOURS["tertiary"]]
+    assert all(len(lines) == 58 and all(len(row) == 108 for row in lines) for lines, _colour in render.line_layers)
+
+
+def test_an_older_core_gets_markers(cache, tmp_path, monkeypatch):
+    monkeypatch.setattr(roads, "_LINE_LAYERS", False)
+    layer = _layer_with(tmp_path, cache, {"motorway": [_line([(-46.70, -23.55), (-46.55, -23.55)])]})
+    render = layer.render(_view(512))
+    assert render.markers and not getattr(render, "line_layers", None)
+
+
+# ---- the area of the RMSP (generator) ----------------------------------------------
+
+def _square(west, south, size):
+    return [[west, south], [west + size, south], [west + size, south + size], [west, south + size], [west, south]]
+
+
+def _mesh(*features):
+    return {"features": [{"properties": {"codarea": str(code)}, "geometry": {"type": "Polygon", "coordinates": [ring]}}
+                         for code, ring in features]}
+
+
+def test_municipality_rings_takes_the_codes_asked_and_fails_on_a_missing_one():
+    mesh = _mesh((1, _square(0, 0, 1)), (2, _square(1, 0, 1)), (3, _square(5, 5, 1)))
+    assert len(build_roads.municipality_rings(mesh, [1, 2])) == 2
+    with pytest.raises(SystemExit):
+        build_roads.municipality_rings(mesh, [1, 4])
+
+
+def test_area_mask_of_two_neighbours_is_their_union():
+    # Two squares sharing an edge: their common border is counted twice by the even-odd
+    # rule, which still leaves each one's inside (and so the union) inside.
+    rings = build_roads.municipality_rings(_mesh((1, _square(0, 0, 1)), (2, _square(1, 0, 1))), [1, 2])
+    bbox = (-0.5, -0.5, 2.5, 1.5)
+    mask = build_roads.area_mask(rings, bbox, 0.1)
+    def at(lon, lat):
+        return bool(mask[int((bbox[3] - lat) / 0.1), int((lon - bbox[0]) / 0.1)])
+    assert at(0.5, 0.5) and at(1.5, 0.5) and at(0.97, 0.5) and at(1.03, 0.5)
+    assert not at(-0.3, 0.5) and not at(2.3, 0.5) and not at(1.0, 1.3)
+
+
+def test_clip_ways_keeps_a_road_with_a_node_inside():
+    rings = build_roads.municipality_rings(_mesh((1, _square(0, 0, 1))), [1])
+    bbox = (-1.0, -1.0, 2.0, 2.0)
+    mask = build_roads.area_mask(rings, bbox, 0.05)
+    ways = {
+        10: ("primary", np.array([[0.5, 0.5], [3.0, 0.5]])),     # starts inside, leaves the box
+        11: ("primary", np.array([[-0.8, -0.8], [-0.6, -0.6]])),  # outside
+        12: ("residential", np.array([[1.5, 1.5], [0.9, 0.9]])),  # ends inside
+    }
+    assert set(build_roads.clip_ways(ways, mask, bbox, 0.05)) == {10, 12}
+
+
+def test_rings_box_adds_the_margin():
+    rings = build_roads.municipality_rings(_mesh((1, _square(-47.0, -24.0, 1.0))), [1])
+    assert build_roads.rings_box(rings, 0.01) == (-47.01, -24.01, -45.99, -22.99)
+
+
+def test_the_rmsp_has_39_municipalities():
+    assert len(build_roads.RMSP_CODES) == 39
+    assert build_roads.RMSP_CODES[3550308] == "São Paulo"

@@ -232,8 +232,9 @@ Notes:
 ## 11. OpenStreetMap (road network, `br_viario`)
 
 Read on 2026-11-22 (fetched pages: the copyright page and the API usage policy). The plugin does not read OpenStreetMap
-at run time: a generator (`packaging/roads/build_roads.py`) reads the roads of the Greater São Paulo box from the
-Overpass API (a sequence of tile queries) and publishes the simplified result as a release asset, which the layer
+at run time: a generator (`packaging/roads/build_roads.py`) reads the roads of the 39 municipalities of the
+Região Metropolitana de São Paulo from the Geofabrik extract of the South-East (the Overpass API is a fallback, not
+used in CI), with the municipalities' outlines from the IBGE mesh (section on IBGE), and publishes the simplified result as a release asset, which the layer
 downloads once a week at most. The published file is a derived database.
 
 | Question | Answer | Certainty | Source |

@@ -16,6 +16,13 @@ answer is kept under --raw-dir when given, and read from there when it is alread
 there, so a run can be repeated without asking the server again. A way that crosses
 two tiles comes back in both; it is kept once, by its id.
 
+Area (--area): "rmsp" (the default) keeps the roads with a node inside one of the 39
+municipalities of the Região Metropolitana de São Paulo (RMSP_CODES), from the IBGE
+municipal mesh of the state (downloaded, or --municipalities FILE); the extract is read in
+the box around them. "box" keeps every road with a node in --bbox, as the first versions.
+The municipalities are rasterised on a grid of AREA_CELL_DEGREES (about 55 m), so a road
+whose nodes all lie within a cell of the outside of the border may be kept or dropped.
+
 Each class is simplified (Douglas-Peucker, in metres) once per zoom range it is drawn
 in, with the tolerance of roads_format.range_tolerance_metres(). The result is written
 with roads_format.write(); the file is checked again by reading it back.
@@ -53,6 +60,25 @@ OVERPASS_URLS = (
 )
 USER_AGENT = "terrascope-br-roads-builder/1.0 (https://github.com/fernandoaugusto21/terrascope-br)"
 TILE_DEGREES = 0.2
+# The 39 municipalities of the Região Metropolitana de São Paulo (IBGE codes; the seven
+# microregions of the RMSP), checked against the IBGE localities API on 2026-11-22.
+RMSP_CODES = {
+    3503901: "Arujá", 3505708: "Barueri", 3506607: "Biritiba Mirim", 3509007: "Caieiras",
+    3509205: "Cajamar", 3510609: "Carapicuíba", 3513009: "Cotia", 3513801: "Diadema",
+    3515004: "Embu das Artes", 3515103: "Embu-Guaçu", 3515707: "Ferraz de Vasconcelos",
+    3516309: "Francisco Morato", 3516408: "Franco da Rocha", 3518305: "Guararema",
+    3518800: "Guarulhos", 3522208: "Itapecerica da Serra", 3522505: "Itapevi",
+    3523107: "Itaquaquecetuba", 3525003: "Jandira", 3526209: "Juquitiba", 3528502: "Mairiporã",
+    3529401: "Mauá", 3530607: "Mogi das Cruzes", 3534401: "Osasco", 3539103: "Pirapora do Bom Jesus",
+    3539806: "Poá", 3543303: "Ribeirão Pires", 3544103: "Rio Grande da Serra", 3545001: "Salesópolis",
+    3546801: "Santa Isabel", 3547304: "Santana de Parnaíba", 3547809: "Santo André",
+    3548708: "São Bernardo do Campo", 3548807: "São Caetano do Sul", 3549953: "São Lourenço da Serra",
+    3550308: "São Paulo", 3552502: "Suzano", 3552809: "Taboão da Serra", 3556453: "Vargem Grande Paulista",
+}
+MUNICIPAL_MESH_URL = ("https://servicodados.ibge.gov.br/api/v3/malhas/estados/35"
+                      "?formato=application/vnd.geo%2Bjson&intrarregiao=municipio&qualidade=intermediaria")
+AREA_CELL_DEGREES = 0.0005   # grid of the municipalities' mask (about 55 m)
+AREA_MARGIN_DEGREES = 0.01   # around the municipalities, for the box the extract is read in
 PAUSE_SECONDS = 2.0          # between two tiles: the Overpass fair-use policy asks for a pause
 ATTEMPTS = 4
 RETRY_SECONDS = (15, 45, 120)
@@ -179,6 +205,93 @@ def read_pbf(path: Path, bbox, log) -> dict[int, tuple[str, np.ndarray]]:
     return ways
 
 
+def municipality_rings(payload: dict, codes) -> list[np.ndarray]:
+    """Every ring (outer and holes) of the features of `payload` (an IBGE mesh: properties
+    "codarea") whose code is in `codes`. Raises SystemExit when a code is missing."""
+    wanted = {int(code) for code in codes}
+    rings, found = [], set()
+    for feature in payload.get("features", []):
+        try:
+            code = int((feature.get("properties") or {}).get("codarea"))
+        except (TypeError, ValueError):
+            continue
+        if code not in wanted:
+            continue
+        found.add(code)
+        geometry = feature.get("geometry") or {}
+        coordinates = geometry.get("coordinates") or []
+        polygons = [coordinates] if geometry.get("type") == "Polygon" else coordinates
+        for polygon in polygons:
+            rings += [np.asarray(ring, dtype=np.float64)[:, :2] for ring in polygon if len(ring) >= 3]
+    missing = wanted - found
+    if missing:
+        raise SystemExit(f"municipal mesh: no outline for {sorted(missing)}")
+    return rings
+
+
+def rings_box(rings: list[np.ndarray], margin: float) -> tuple[float, float, float, float]:
+    """(west, south, east, north) around the rings, `margin` degrees wider on each side."""
+    points = np.concatenate(rings)
+    west, south = points.min(axis=0) - margin
+    east, north = points.max(axis=0) + margin
+    return (round(float(west), 4), round(float(south), 4), round(float(east), 4), round(float(north), 4))
+
+
+def area_mask(rings: list[np.ndarray], bbox, cell: float) -> np.ndarray:
+    """(rows, cols) bool grid over `bbox` (west, south, east, north), row 0 at the north: True
+    where the cell centre is inside the rings (even-odd rule over every ring together, which
+    is each municipality's inside as long as they do not overlap)."""
+    west, south, east, north = bbox
+    cols = int(math.ceil((east - west) / cell))
+    rows = int(math.ceil((north - south) / cell))
+    lons = west + (np.arange(cols) + 0.5) * cell
+    lats = north - (np.arange(rows) + 0.5) * cell
+    x0 = np.concatenate([ring[:, 0] for ring in rings])
+    y0 = np.concatenate([ring[:, 1] for ring in rings])
+    x1 = np.concatenate([np.roll(ring[:, 0], -1) for ring in rings])
+    y1 = np.concatenate([np.roll(ring[:, 1], -1) for ring in rings])
+    sloped = y0 != y1
+    x0, y0, x1, y1 = x0[sloped], y0[sloped], x1[sloped], y1[sloped]
+    mask = np.zeros((rows, cols), dtype=bool)
+    for row, lat in enumerate(lats.tolist()):
+        crosses = (y0 > lat) != (y1 > lat)
+        if not crosses.any():
+            continue
+        xa, ya, xb, yb = x0[crosses], y0[crosses], x1[crosses], y1[crosses]
+        xs = np.sort((xb - xa) * (lat - ya) / (yb - ya) + xa)
+        east_of = len(xs) - np.searchsorted(xs, lons, side="right")   # crossings east of each centre
+        mask[row] = (east_of % 2) == 1
+    return mask
+
+
+def clip_ways(ways: dict[int, tuple[str, np.ndarray]], mask: np.ndarray, bbox, cell: float) -> dict:
+    """The ways with a node in a True cell of `mask` (see area_mask)."""
+    if not ways:
+        return {}
+    west, _south, _east, north = bbox
+    ids = list(ways)
+    counts = np.array([len(ways[way_id][1]) for way_id in ids])
+    points = np.concatenate([ways[way_id][1] for way_id in ids])
+    cols = np.floor((points[:, 0] - west) / cell).astype(np.int64)
+    rows = np.floor((north - points[:, 1]) / cell).astype(np.int64)
+    valid = (rows >= 0) & (rows < mask.shape[0]) & (cols >= 0) & (cols < mask.shape[1])
+    inside = np.zeros(len(points), dtype=bool)
+    inside[valid] = mask[rows[valid], cols[valid]]
+    starts = np.concatenate(([0], np.cumsum(counts)[:-1]))
+    keep = np.logical_or.reduceat(inside, starts)
+    return {way_id: ways[way_id] for way_id, kept in zip(ids, keep.tolist()) if kept}
+
+
+def load_mesh(path: Path | None, log) -> dict:
+    """The IBGE municipal mesh of the state of São Paulo: `path`, or downloaded."""
+    if path is not None:
+        return json.loads(path.read_text(encoding="utf-8"))
+    log(f"municipal mesh: {MUNICIPAL_MESH_URL}")
+    request = urllib.request.Request(MUNICIPAL_MESH_URL, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(request, timeout=120) as answer:
+        return json.loads(answer.read().decode("utf-8"))
+
+
 def _metres(points: np.ndarray, lat0: float) -> np.ndarray:
     scale = math.cos(math.radians(lat0))
     return np.column_stack((
@@ -268,20 +381,37 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source", choices=("overpass", "pbf"), default="overpass")
     parser.add_argument("--pbf", type=Path, help="with --source pbf: the .osm.pbf extract to read")
     parser.add_argument("--raw-dir", type=Path, help="overpass: keep the tile answers here, and read them when present")
-    parser.add_argument("--bbox", type=float, nargs=4, default=fmt.BBOX, metavar=("W", "S", "E", "N"))
+    parser.add_argument("--area", choices=("rmsp", "box"), default="rmsp",
+                        help="rmsp: the 39 municipalities of the RMSP (default); box: every road in --bbox")
+    parser.add_argument("--municipalities", type=Path,
+                        help="rmsp: the IBGE municipal mesh of SP (GeoJSON) instead of downloading it")
+    parser.add_argument("--bbox", type=float, nargs=4, default=None, metavar=("W", "S", "E", "N"),
+                        help="box: the box (default: roads_format.BBOX)")
     args = parser.parse_args(argv)
 
     def log(message: str) -> None:
         print(message, flush=True)
 
     started = time.perf_counter()
-    bbox = tuple(args.bbox)
+    mask = None
+    if args.area == "rmsp":
+        rings = municipality_rings(load_mesh(args.municipalities, log), RMSP_CODES)
+        bbox = rings_box(rings, AREA_MARGIN_DEGREES)
+        mask = area_mask(rings, bbox, AREA_CELL_DEGREES)
+        log(f"area: {len(RMSP_CODES)} municipalities, {len(rings)} rings, box {bbox}, "
+            f"{int(mask.sum())} of {mask.size} cells inside")
+    else:
+        bbox = tuple(args.bbox or fmt.BBOX)
     if args.source == "pbf":
         if args.pbf is None:
             parser.error("--source pbf needs --pbf")
         ways = read_pbf(args.pbf, bbox, log)
     else:
         ways = read_overpass(bbox, args.raw_dir, log)
+    if mask is not None:
+        before = len(ways)
+        ways = clip_ways(ways, mask, bbox, AREA_CELL_DEGREES)
+        log(f"area: kept {len(ways)} of {before} roads")
     read_seconds = time.perf_counter() - started
     log(f"read {len(ways)} roads in {read_seconds:.1f} s")
 
@@ -293,6 +423,8 @@ def main(argv: list[str] | None = None) -> int:
                    else "Overpass API (tiles): OpenStreetMap"),
         "attribution": fmt.ATTRIBUTION,
         "bbox": list(bbox),
+        "area": (f"{len(RMSP_CODES)} municipalities of the Região Metropolitana de São Paulo (IBGE)"
+                 if args.area == "rmsp" else "box"),
         "lod_zooms": list(fmt.LOD_ZOOMS),
         "classes": [{"name": name, "min_zoom": zoom} for name, _tags, zoom in fmt.CLASSES],
         "stats": stats,
