@@ -36,6 +36,10 @@ pull request.
 The weekly road file (`.github/workflows/build-roads.yml`) also runs on pushes to `main` that change its inputs. It
 publishes its own `roads-<time>` release and is not an app release.
 
+## The wiki's Changelog page
+
+The [wiki's Changelog page](https://github.com/fernandoaugusto21/terrascope-br/wiki/Changelog) is regenerated after each Windows release: the last step of the `publish` job in `build-windows.yml` runs `packaging/windows/wiki_changelog.py` on the windows-* releases (their names and notes), and commits the page to the wiki when it changed. The page keeps a version's section after the workflow prunes that build, because it reads the page already in the wiki (`--previous`). A failure of that step is a warning on the run and does not fail the release. To regenerate it by hand, make a `releases.json` with a `{name, tagName, publishedAt, body}` object per windows-* release (`gh release list --json name,tagName,publishedAt`, then `gh release view <tag> --json body` for each body), then run `python packaging/windows/wiki_changelog.py --releases releases.json --previous Changelog.md --out DIR` from a clone of the wiki (`https://github.com/fernandoaugusto21/terrascope-br.wiki.git`) and copy `DIR/Changelog.md` over its `Changelog.md`, commit and push.
+
 ## Merge procedure (for scripts and agents)
 
 Run from a checkout with `gh` logged in to an account that can merge. Replace `31` with the pull request number:

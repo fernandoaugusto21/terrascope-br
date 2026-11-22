@@ -236,3 +236,44 @@ jobs:
           while read -r old; do
             gh release delete "$old" --repo "$REPO" --cleanup-tag --yes
           done
+
+      - name: Regenerate the wiki's Changelog page
+        # After the prune, so the page lists the builds still published; the sections of the pruned
+        # ones are kept from the page in the wiki. Not required for the release: a failure is a warning.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.build.outputs.tag }}
+        run: |
+          set -Eeuo pipefail
+          trap 'echo "::warning::The wiki Changelog page was not updated for $TAG (the release is published). Regenerate it by hand, see docs/RELEASING.md."' ERR
+          tmp="$RUNNER_TEMP/wiki"
+          rm -rf "$tmp"
+          mkdir -p "$tmp"
+          git clone --quiet "https://x-access-token:${GITHUB_TOKEN}@github.com/${REPO}.wiki.git" "$tmp/wiki"
+          # The windows-* releases, each with its notes: one JSON list for the script.
+          gh release list --repo "$REPO" --limit 200 --json name,tagName,publishedAt |
+            jq -c '.[] | select(.tagName | startswith("windows-"))' > "$tmp/windows.jsonl"
+          : > "$tmp/releases.jsonl"
+          while IFS= read -r release; do
+            tag=$(jq -r .tagName <<< "$release")
+            body=$(gh release view "$tag" --repo "$REPO" --json body --jq .body < /dev/null)
+            jq -c --arg body "$body" '. + {body: $body}' <<< "$release" >> "$tmp/releases.jsonl"
+          done < "$tmp/windows.jsonl"
+          jq -s . "$tmp/releases.jsonl" > "$tmp/releases.json"
+          python3 packaging/windows/wiki_changelog.py --releases "$tmp/releases.json" \
+            --previous "$tmp/wiki/Changelog.md" --out "$tmp/page"
+          cp "$tmp/page/Changelog.md" "$tmp/wiki/Changelog.md"
+          cd "$tmp/wiki"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          git add Changelog.md
+          if git diff --cached --quiet; then
+            echo "The wiki's Changelog page is unchanged."
+            exit 0
+          fi
+          git commit --quiet -m "Changelog: regenerated after $TAG"
+          git push --quiet origin HEAD
+          echo "The wiki's Changelog page was updated."
