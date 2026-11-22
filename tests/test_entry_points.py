@@ -51,8 +51,11 @@ def test_sp_aguas_is_inactive_and_asks_nothing(monkeypatch):
     assert "SP Águas" not in brasil_tabs()[0]["attribution"]
     asked = []
     monkeypatch.setattr(spaguas, "get", lambda *args, **kwargs: asked.append(args))
+    layer = spaguas.RainGaugeLayer()
+    layer.enabled = layer.shown = True
+    assert not layer.is_due() and layer.refresh_if_due(force=False) is False   # no retry loop
     with pytest.raises(SourceError):
-        spaguas.RainGaugeLayer().fetch()
+        layer.fetch()
     assert asked == []
 
 

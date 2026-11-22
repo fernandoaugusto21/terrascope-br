@@ -245,6 +245,8 @@ The BRASIL tab shows its credits in one line at the bottom-left of the map, and 
 - 2026-11-14: `Data: IBGE, INPE, IAG-USP, SP Águas` became `Data: IBGE, INPE, IAG-USP, SP Águas, USGS` (USGS was
   missing although the earthquake layer uses it as fallback).
 - 2026-11-21: `Data: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, CGE, RainViewer, Open-Meteo` (pt_BR: `Dados: ...`).
+- 2026-11-22: `Data: IBGE, INPE, IAG-USP, USGS, INMET, CGE, RainViewer, Open-Meteo`: SP Águas left with its inactive
+  layer (section 5).
 
 Sources shown only now and then are named while they show, on their own lines above the tab's line (with a core that
 has `Layer.credits`):

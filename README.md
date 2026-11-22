@@ -41,6 +41,8 @@ When a release with plugin support is out, this line changes to that release.
 The SP Águas rain gauge layer (`br_gauges`) is inactive since 2026-11-22: it is not registered and makes no request.
 Its code stays in `sources/spaguas.py` for later use (`ENABLED`).
 
+The municipality names (weather labels and providers) come from the IBGE localities list, kept 30 days.
+
 ### Radar history
 
 The Chuva Online site serves only its last ten frames, as ten files that are rewritten as new frames come (no archive).

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-21 18:11-0300\n"
+"POT-Creation-Date: 2026-11-22 02:34-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -68,8 +68,8 @@ msgstr ""
 
 #: src/terrascope_br/tabs.py:27
 msgid ""
-"Brazil: state and city outlines, fires, quakes, radar, and global rain and "
-"temperature cropped to Brazil"
+"Brazil: state and city outlines, fires, quakes, radar, and global rain "
+"and temperature cropped to Brazil"
 msgstr ""
 
 #: src/terrascope_br/sources/cge.py:67
@@ -103,7 +103,7 @@ msgstr ""
 #: src/terrascope_br/sources/cge.py:389 src/terrascope_br/sources/iag.py:216
 #: src/terrascope_br/sources/iag.py:217 src/terrascope_br/sources/inmet.py:312
 #: src/terrascope_br/sources/inmet.py:314
-#: src/terrascope_br/sources/spaguas.py:131
+#: src/terrascope_br/sources/spaguas.py:144
 msgid "N/A"
 msgstr ""
 
@@ -111,7 +111,7 @@ msgstr ""
 msgid "REGION"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:392 src/terrascope_br/sources/ibge.py:300
+#: src/terrascope_br/sources/cge.py:392 src/terrascope_br/sources/ibge.py:308
 msgid "STATE"
 msgstr ""
 
@@ -120,7 +120,7 @@ msgid "state"
 msgstr ""
 
 #: src/terrascope_br/sources/cge.py:393
-#: src/terrascope_br/sources/spaguas.py:139
+#: src/terrascope_br/sources/spaguas.py:152
 msgid "UPDATED"
 msgstr ""
 
@@ -246,15 +246,15 @@ msgstr ""
 msgid "POSITION"
 msgstr ""
 
-#: src/terrascope_br/sources/ibge.py:299
+#: src/terrascope_br/sources/ibge.py:307
 msgid "IBGE states"
 msgstr ""
 
-#: src/terrascope_br/sources/ibge.py:308
+#: src/terrascope_br/sources/ibge.py:316
 msgid "IBGE municipalities"
 msgstr ""
 
-#: src/terrascope_br/sources/ibge.py:309
+#: src/terrascope_br/sources/ibge.py:317
 msgid "MUNICIPALITY"
 msgstr ""
 
@@ -322,72 +322,72 @@ msgstr ""
 msgid "AGE"
 msgstr ""
 
-#: src/terrascope_br/sources/spaguas.py:61
+#: src/terrascope_br/sources/spaguas.py:67
 msgid "unnamed station"
 msgstr ""
 
-#: src/terrascope_br/sources/spaguas.py:62
-#: src/terrascope_br/sources/spaguas.py:63
+#: src/terrascope_br/sources/spaguas.py:68
+#: src/terrascope_br/sources/spaguas.py:69
 msgid "unknown"
 msgstr ""
 
-#: src/terrascope_br/sources/spaguas.py:72
+#: src/terrascope_br/sources/spaguas.py:78
 msgid "SP Águas rain gauges, 1 h"
 msgstr ""
 
-#: src/terrascope_br/sources/spaguas.py:73
+#: src/terrascope_br/sources/spaguas.py:79
 msgid "RAIN GAUGE"
 msgstr ""
 
-#: src/terrascope_br/sources/spaguas.py:120
+#: src/terrascope_br/sources/spaguas.py:133
 msgid "0 mm"
 msgstr ""
 
-#: src/terrascope_br/sources/spaguas.py:121
+#: src/terrascope_br/sources/spaguas.py:134
 msgid "0-2"
 msgstr ""
 
-#: src/terrascope_br/sources/spaguas.py:122
+#: src/terrascope_br/sources/spaguas.py:135
 msgid "2-10"
 msgstr ""
 
-#: src/terrascope_br/sources/spaguas.py:123
+#: src/terrascope_br/sources/spaguas.py:136
 msgid "10-25"
 msgstr ""
 
-#: src/terrascope_br/sources/spaguas.py:124
+#: src/terrascope_br/sources/spaguas.py:137
 msgid "25+ mm"
 msgstr ""
 
-#: src/terrascope_br/sources/spaguas.py:135
+#: src/terrascope_br/sources/spaguas.py:148
 msgid "STATION"
 msgstr ""
 
-#: src/terrascope_br/sources/spaguas.py:136
+#: src/terrascope_br/sources/spaguas.py:149
 msgid "OWNER"
 msgstr ""
 
-#: src/terrascope_br/sources/spaguas.py:137
+#: src/terrascope_br/sources/spaguas.py:150
 msgid "CITY"
 msgstr ""
 
-#: src/terrascope_br/sources/spaguas.py:138
+#: src/terrascope_br/sources/spaguas.py:151
 msgid "LAST HOUR"
 msgstr ""
 
-#: src/terrascope_br/sources/weather_providers.py:282
+#: src/terrascope_br/sources/weather_providers.py:312
 msgid "Overnight"
 msgstr ""
 
-#: src/terrascope_br/sources/weather_providers.py:282
+#: src/terrascope_br/sources/weather_providers.py:312
 msgid "Morning"
 msgstr ""
 
-#: src/terrascope_br/sources/weather_providers.py:282
+#: src/terrascope_br/sources/weather_providers.py:312
 msgid "Afternoon"
 msgstr ""
 
-#: src/terrascope_br/sources/weather_providers.py:282
+#: src/terrascope_br/sources/weather_providers.py:312
 msgid "Night"
 msgstr ""
 

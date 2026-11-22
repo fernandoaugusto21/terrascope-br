@@ -65,6 +65,13 @@ def test_missing_layer_entry_point_is_reported(monkeypatch):
     assert "br_radar" in problems[0]
 
 
+def test_a_layer_left_from_an_old_install_is_reported(monkeypatch):
+    _tables(monkeypatch, layers=[*EXPECTED_LAYERS, "br_gauges"])
+    problems = check_command.check()
+    assert len(problems) == 1
+    assert "br_gauges" in problems[0] and "reinstall" in problems[0]
+
+
 def test_entry_points_of_other_packages_do_not_count(monkeypatch):
     table = [_EntryPoint(name, dist="someone-else") for name in ("brasil",)]
     monkeypatch.setattr(

@@ -84,6 +84,11 @@ class RainGaugeLayer(SourceLayer):
     def stamp_file(self):
         return store.path("spaguas", "measurements.json")
 
+    def is_due(self) -> bool:
+        # Switched off: never due, so nothing is fetched or retried, even when a stale
+        # install or a user's tab still loads the layer.
+        return ENABLED and super().is_due()
+
     def fetch(self) -> None:
         if not ENABLED:
             raise SourceError("SP Águas rain gauges are switched off in this version (spaguas.ENABLED)")

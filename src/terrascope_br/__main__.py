@@ -80,6 +80,10 @@ def check() -> list[str]:
         for name in expected:
             if name not in registered:
                 problems.append(f"entry point {group} / {name} is not registered")
+        for name in sorted(registered - set(expected)):
+            # An install made before a layer was taken out still registers it.
+            problems.append(f"entry point {group} / {name} is registered but no longer part of {PACKAGE}: "
+                            f"reinstall {PACKAGE} (pip install -e . in an editable checkout)")
     return problems
 
 
