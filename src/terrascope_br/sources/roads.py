@@ -22,7 +22,6 @@ from __future__ import annotations
 import json
 
 import numpy as np
-from PIL import Image, ImageDraw
 
 from terrascope.core.layer import LayerRender, Marker, SidebarLine
 from terrascope.core.view import BRAILLE_BIT_WEIGHTS, View
@@ -159,24 +158,40 @@ class RoadsLayer(SourceLayer):
                 north = np.maximum.reduceat(degrees[:, 1], starts)
             else:
                 west = east = south = north = np.zeros(0)
-            self._prepared[key] = (degrees, starts, ends, (west, south, east, north))
+            # The polyline of each vertex, and the segments (a vertex and the next one of the
+            # same polyline), so a view's segments are picked without a loop over polylines.
+            line_of = np.repeat(np.arange(len(starts)), ends - starts)
+            segments = np.flatnonzero(line_of[:-1] == line_of[1:])
+            self._prepared[key] = (degrees, starts, ends, (west, south, east, north), line_of, segments)
         return self._prepared[key]
 
     def _rasterize(self, view: View, name: str, index: int) -> np.ndarray:
-        """Braille values (height, width) of one class: the dots of its lines in view."""
-        degrees, starts, ends, (west, south, east, north) = self._prepare(name, index)
-        image = Image.new("L", (view.pixel_width, view.pixel_height), 0)
-        if len(starts):
+        """Braille values (height, width) of one class: the dots of its lines in view.
+
+        Every segment in view is sampled at least once per pixel along its longer axis, all
+        segments of the class at once (numpy), and the pixels hit are lit. One
+        ImageDraw.line per polyline gave the same cells (98 to 100 % of them over São Paulo,
+        the rest one dot apart) but cost 30 to 100 ms per class at zoom 64, mostly in the
+        Python loop over tens of thousands of short polylines."""
+        degrees, starts, ends, (west, south, east, north), line_of, segments = self._prepare(name, index)
+        pixels = np.zeros((view.pixel_height, view.pixel_width), dtype=bool)
+        if len(segments):
             lon0, lat0 = view.origin_lon, view.origin_lat
             lon1, lat1 = lon0 + view.lon_span, lat0 - view.lat_span
-            chosen = np.flatnonzero((east >= lon0) & (west <= lon1) & (north >= lat1) & (south <= lat0))
-            draw = ImageDraw.Draw(image)
-            for line in chosen.tolist():
-                points = degrees[starts[line]:ends[line]]
-                xs = (points[:, 0] - lon0) * view.scale_x
-                ys = (lat0 - points[:, 1]) * view.scale_y
-                draw.line(list(zip(xs.tolist(), ys.tolist())), fill=255, width=1)
-        dots = np.asarray(image).reshape(view.height, 4, view.width, 2) > 0
+            chosen = (east >= lon0) & (west <= lon1) & (north >= lat1) & (south <= lat0)
+            seg = segments[chosen[line_of[segments]]]
+            xa = (degrees[seg, 0] - lon0) * view.scale_x
+            ya = (lat0 - degrees[seg, 1]) * view.scale_y
+            dx = (degrees[seg + 1, 0] - lon0) * view.scale_x - xa
+            dy = (lat0 - degrees[seg + 1, 1]) * view.scale_y - ya
+            samples = np.ceil(np.maximum(np.abs(dx), np.abs(dy))).astype(np.int64) + 1
+            owner = np.repeat(np.arange(len(seg)), samples)
+            step = (np.arange(samples.sum()) - np.repeat(np.cumsum(samples) - samples, samples))                 / np.maximum(samples - 1, 1)[owner]
+            xs = np.floor(xa[owner] + dx[owner] * step).astype(np.int64)
+            ys = np.floor(ya[owner] + dy[owner] * step).astype(np.int64)
+            inside = (xs >= 0) & (xs < view.pixel_width) & (ys >= 0) & (ys < view.pixel_height)
+            pixels[ys[inside], xs[inside]] = True
+        dots = pixels.reshape(view.height, 4, view.width, 2)
         return (dots * BRAILLE_BIT_WEIGHTS[np.newaxis, :, np.newaxis, :]).sum(axis=(1, 3))
 
     def _markers_for(self, view: View) -> list[Marker]:

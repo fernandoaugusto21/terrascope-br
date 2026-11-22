@@ -346,3 +346,32 @@ def test_the_cells_follow_a_new_land_mask_for_the_same_view():
     first = set(layer.render_with_land(view, water).bg_cells.values())
     second = set(layer.render_with_land(view, land).bg_cells.values())
     assert first != second
+
+
+def _inside_ring_one_edge_at_a_time(lon, lat, points):
+    """The crossing-number test as first written (one edge per step), kept as the reference."""
+    inside = np.zeros(lon.shape, dtype=bool)
+    x0, y0 = points[:, 0], points[:, 1]
+    x1, y1 = np.roll(x0, -1), np.roll(y0, -1)
+    for xa, ya, xb, yb in zip(x0.tolist(), y0.tolist(), x1.tolist(), y1.tolist()):
+        if ya == yb:
+            continue
+        crosses = (ya > lat) != (yb > lat)
+        x_at = (xb - xa) * (lat - ya) / (yb - ya) + xa
+        inside ^= crosses & (lon < x_at)
+    return inside
+
+
+def test_inside_ring_matches_the_one_edge_at_a_time_test(monkeypatch):
+    # Small edge blocks too, so the blocked loop runs more than once.
+    monkeypatch.setattr(inmet, "EDGE_CHUNK_CELLS", 4096)
+    rng = np.random.default_rng(7)
+    lon, lat = np.meshgrid(np.linspace(-47.0, -46.0, 97), np.linspace(-24.0, -23.0, 61))
+    for vertices in (3, 17, 250):
+        angles = np.sort(rng.uniform(0, 2 * np.pi, vertices))
+        radius = rng.uniform(0.1, 0.45, vertices)
+        ring = np.column_stack((-46.5 + radius * np.cos(angles), -23.5 + radius * np.sin(angles)))
+        ring[::5, 1] = ring[0, 1]   # some horizontal edges
+        assert np.array_equal(inmet._inside_ring(lon, lat, ring), _inside_ring_one_edge_at_a_time(lon, lat, ring))
+    far = np.array([[10.0, 10.0], [11.0, 10.0], [11.0, 11.0]])   # outside the grid entirely
+    assert not inmet._inside_ring(lon, lat, far).any()
