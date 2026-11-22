@@ -24,22 +24,38 @@ closest zoom).
 Drawn like the INMET warnings (same colours over the same tint rule): every
 region gets its outline; a region in attention, imminence or alert gets the
 colour of its state (tinted inside from TINT_ZOOM on) and a marker the info box
-describes. Nothing is drawn below MIN_ZOOM, where the city is a few cells."""
+describes. Nothing is drawn below MIN_ZOOM, where the city is a few cells.
+
+By region, too:
+- the name of each subprefeitura, from LABEL_MIN_ZOOM on (clicking it opens the
+  region in the info box);
+- the CGE flood points of the day (alagamentos.jsp, read with the states): a
+  region with active points gets a mark, red when one is impassable, yellow when
+  they are passable, with their number next to the name;
+- in the info box of a selected region, the reading of the CGE station of that
+  region and the CGE forecast. The CGE publishes one forecast for the whole city,
+  not one per region, and the info box says so. Both are fetched in the
+  background when the region is selected, and kept 10 and 30 minutes."""
 
 from __future__ import annotations
 
 import html
 import io
 import json
+import math
 import re
+import threading
 import time
+import sys
 import unicodedata
+from datetime import datetime, timedelta
 from email.utils import parsedate_to_datetime
 
 import numpy as np
 from PIL import Image
 
-from terrascope.core.layer import LayerRender, SidebarLine
+from terrascope.core import config
+from terrascope.core.layer import CLICK_RADIUS, LayerRender, Marker, SidebarLine
 from terrascope.core.view import View
 
 from terrascope_br import store
@@ -224,6 +240,199 @@ def compact_regions(payload: dict) -> dict:
     return regions
 
 
+# ---- flood points (alagamentos) and stations, by region ---------------------------
+FLOODS_URL = "https://www.cgesp.org/v3/alagamentos.jsp"
+STATIONS_URL = "https://www.cgesp.org/v3/estacoes-meteorologicas.jsp"
+STATION_URL = "https://www.cgesp.org/v3/estacao.jsp?POSTO={post}"
+STATIONS_SECONDS = 24 * 3600        # the station list rarely changes
+STATION_SECONDS = 10 * 60           # a station page, as the weather provider keeps it
+
+# Names the flood list may use that are not the image map's (the rest match REGION_CODES).
+REGION_ALIASES = {
+    "capela do socorro": "CS", "m boi mirim": "MB", "freguesia/brasilandia": "FO",
+    "aricanduva/formosa/carrao": "AF", "aricanduva": "AF", "jacana": "JT", "tremembe": "JT",
+}
+# CGE station name (estacoes-meteorologicas.jsp) -> region. Stations outside the city
+# (Riacho Grande, Mauá, Santana do Parnaíba) and the second Capela do Socorro station
+# are left out; Casa Verde, Ermelino Matarazzo, Guaianases, Cidade Tiradentes and
+# Sapopemba have no station of their own.
+STATION_REGIONS = {
+    "penha": "PE", "perus": "PR", "pirituba": "PJ", "freguesia do o": "FO", "santana/tucuruvi": "ST",
+    "tremembe": "JT", "sao miguel paulista": "MP", "itaim paulista": "IT", "sao mateus": "SM",
+    "se - cge": "SE", "butanta": "BT", "ipiranga": "IP", "santo amaro": "SA", "m boi mirim": "MB",
+    "cidade ademar": "AD", "barragem parelheiros": "PA", "lapa": "LA", "campo limpo": "CL",
+    "capela do socorro - subprefeitura": "CS", "vila formosa": "AF", "mooca": "MO", "itaquera": "IQ",
+    "vila prudente": "VP", "vila maria / guilherme": "MG", "vila mariana": "VM", "jabaquara": "JA",
+    "pinheiros": "PI",
+}
+# Flood point state, from the class of its icon: (active, passable).
+FLOOD_CLASSES = {
+    "ativo-transitavel": (True, True), "ativo-intransitavel": (True, False),
+    "inativo-transitavel": (False, True), "inativo-intransitavel": (False, False),
+}
+# Zone of each region as the CGE flood list groups them; the list's own zone wins.
+REGION_ZONES = {
+    **dict.fromkeys(("SE",), N_("Centre")),
+    **dict.fromkeys(("PR", "PJ", "FO", "CV", "ST", "JT", "MG"), N_("North zone")),
+    **dict.fromkeys(("LA", "PI", "BT"), N_("West zone")),
+    **dict.fromkeys(("VM", "IP", "JA", "SA", "CL", "MB", "AD", "CS", "PA"), N_("South zone")),
+    **dict.fromkeys(("MO", "VP", "SB", "AF", "PE", "EM", "MP", "IQ", "SM", "IT", "GU", "CT"), N_("East zone")),
+}
+# The flood list's zone titles -> the same zones as REGION_ZONES (shown translated).
+ZONE_TITLES = {"centro": N_("Centre"), "zona norte": N_("North zone"), "zona oeste": N_("West zone"),
+               "zona sul": N_("South zone"), "zona leste": N_("East zone")}
+PASSABLE_COLOR = "#ffd60a"
+IMPASSABLE_COLOR = "#ff3b30"
+LABEL_COLOR = "#c9d1d9"
+LABEL_MIN_ZOOM = 128.0              # the city is about 50 cells wide: room for the names
+FLOOD_ROWS = 3                      # flood points listed in the info box
+
+
+def region_code(name: str) -> str | None:
+    """GeoSampa code of a region named as the CGE pages name it, or None."""
+    plain = re.sub(r"\s*/\s*", "/", _plain(name))
+    return REGION_CODES.get(plain) or REGION_ALIASES.get(plain)
+
+
+def _text(fragment: str) -> str:
+    return " ".join(html.unescape(re.sub(r"<[^>]+>", " ", fragment)).split())
+
+
+def parse_floods(page: str) -> dict[str, dict]:
+    """Region code -> {"zone", "points": [{"active", "passable", "time", "street",
+    "direction", "reference"}]} of the CGE flood list of a day. A day with no
+    flood gives {}. Raises ValueError when the page is not the flood list."""
+    if "tb-pontos-de-alagamentos" not in page and "alagamentos para essa data" not in page:
+        raise ValueError("not the CGE flood list")
+    regions: dict[str, dict] = {}
+    zone = ""
+    # The zone titles and the region tables come in page order.
+    pattern = r'class="tit-bairros">(.*?)</h1>|<table class="tb-pontos-de-alagamentos">(.*?)</table>'
+    for match in re.finditer(pattern, page, flags=re.S):
+        if match.group(1) is not None:
+            zone = _text(match.group(1))
+            continue
+        table = match.group(2)
+        name = re.search(r'class="bairro[^"]*">(.*?)<hr', table, flags=re.S)
+        code = region_code(_text(name.group(1))) if name else None
+        if code is None:
+            continue
+        points = regions.setdefault(code, {"zone": zone, "points": []})["points"]
+        for block in re.findall(r'<div class="ponto-de-alagamento">(.*?)</div>', table, flags=re.S):
+            state = re.search(r'<li class="((?:in)?ativo-[a-z]+)"', block)
+            active, passable = FLOOD_CLASSES.get(state.group(1) if state else "", (False, True))
+            cells = [re.split(r"<br\s*/?>", cell)
+                     for cell in re.findall(r'<li class="arial-descr-alag[^"]*">(.*?)</li>', block, flags=re.S)]
+            first = cells[0] if cells else []
+            when = _text(first[0]) if first else ""
+            street = _text(first[1]) if len(first) > 1 else ""
+            more = {}
+            for line in cells[1] if len(cells) > 1 else []:
+                label, _sep, value = _text(line).partition(":")
+                more[_plain(label)] = value.strip()
+            span = re.fullmatch(r"De (\S+) a (\S+)", when)
+            points.append({
+                "active": active, "passable": passable,
+                "time": f"{span.group(1)}–{span.group(2)}" if span else when.removeprefix("De ").strip(),
+                "street": street, "direction": more.get("sentido", ""), "reference": more.get("referencia", ""),
+            })
+    return regions
+
+
+def parse_station_list(page: str) -> dict[str, str]:
+    """Region code -> CGE station number, from the station list page."""
+    found: dict[str, str] = {}
+    for post, name in re.findall(r'estacao\.jsp\?POSTO=(\d+)"[^>]*>(.*?)</a>', page, flags=re.S):
+        code = STATION_REGIONS.get(_plain(_text(name)))
+        if code and code not in found:
+            found[code] = post
+    return found
+
+
+def _zone_name(code: str, title: str) -> str:
+    """The region's zone in the interface language: the flood list's title when it
+    gave one it knows, else the fixed table; an unknown title as the CGE wrote it."""
+    zone = ZONE_TITLES.get(_plain(title)) or REGION_ZONES.get(code)
+    return _(zone) if zone else title
+
+
+def flood_summary(points: list[dict]) -> tuple[int, int, str | None]:
+    """(active points, points of the day, marker colour or None): red when an
+    active point is impassable, yellow when the active ones are passable."""
+    active = [point for point in points if point["active"]]
+    if not active:
+        return 0, len(points), None
+    colour = IMPASSABLE_COLOR if any(not point["passable"] for point in active) else PASSABLE_COLOR
+    return len(active), len(points), colour
+
+
+def _label_point(rings: list) -> tuple[float, float]:
+    """A point inside the region for its name and marks (the centre of the biggest
+    ring may fall outside a bent region)."""
+    try:
+        from terrascope_br.sources.municipalities import interior_point
+        return interior_point([ring.points for ring in rings])
+    except ImportError:   # a core without weather providers: the centre of the biggest ring
+        biggest = max(rings, key=lambda ring: (ring.max_lon - ring.min_lon) * (ring.max_lat - ring.min_lat))
+        centre = biggest.points[:-1].mean(axis=0) if len(biggest.points) > 1 else biggest.points[0]
+        return float(centre[0]), float(centre[1])
+
+
+def _number_text(value: float | None, unit: str) -> str:
+    """12.5 -> "12,5 °C" in Portuguese (the core's regional format when it has one)."""
+    if value is None:
+        return ""
+    try:
+        from terrascope.core.i18n import format_number
+    except ImportError:
+        return f"{value:.1f}{unit}"
+    return format_number(value, 1) + unit
+
+
+def region_details(code: str, now: datetime | None = None) -> tuple[str, str]:
+    """(station text, forecast text) of a region: the reading of its CGE station
+    (temperature, rain since the station's last reset, wind), and the CGE forecast
+    of today and tomorrow, which is the same for every region. A part that cannot
+    be read says why in a few words."""
+    try:
+        from terrascope_br.sources import weather_providers as wp
+    except ImportError:
+        return _("needs a newer Terrascope"), _("needs a newer Terrascope")
+    now = now or datetime.now(wp.SAO_PAULO_TIME)
+    forecast: list[dict] = []
+    try:
+        forecast = wp.parse_cge_forecast(wp._page(wp.CGE_FORECAST_URL, wp.CGE_FORECAST_SECONDS))
+    except (wp.WeatherFetchError, ValueError):
+        pass
+    station = _("no CGE station in this region")
+    try:
+        post = parse_station_list(wp._page(STATIONS_URL, STATIONS_SECONDS)).get(code)
+        if post:
+            page = wp._page(STATION_URL.format(post=post), STATION_SECONDS)
+            reading = wp.parse_cge_station(page, forecast, now)
+            rain = wp._number(wp._station_value(page, "Per. Atual"))
+            parts = [_number_text(reading["temperature"], " °C")]
+            if rain is not None:
+                parts.append(_("rain %s") % _number_text(rain, " mm"))
+            if reading.get("windspeed") is not None:
+                parts.append(_("wind %s") % _number_text(reading["windspeed"], " km/h"))
+            station = " · ".join(part for part in parts if part)
+    except (wp.WeatherFetchError, ValueError):
+        station = _("station unavailable")
+    by_date = {day.get("date"): day for day in forecast}
+    texts = []
+    for name, date in ((_("today"), now.date()), (_("tomorrow"), now.date() + timedelta(days=1))):
+        day = by_date.get(date.isoformat())
+        if day is None:
+            continue
+        low, high = day.get("tmin"), day.get("tmax")
+        span = f" {low:.0f}–{high:.0f} °C" if low is not None and high is not None else ""
+        texts.append(f"{name}: {day.get('summary') or '—'}{span}")
+    forecast_text = "; ".join(texts) + " " + _("(whole city: the CGE gives no forecast by region)") if texts \
+        else _("forecast unavailable")
+    return station, forecast_text
+
+
 def _modified(headers: dict) -> float:
     """Epoch of a Last-Modified header, or now when there is none."""
     for name, value in (headers or {}).items():
@@ -256,6 +465,10 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
         self._regions_retry_at = 0.0
         self._generation = 0            # counts parses: the cached drawings belong to one of them
         self._drawn = False             # the outlines were drawn in the last frame
+        self.floods_time: float | None = None
+        self._details: dict[str, dict] = {}   # region code -> {"station", "forecast", "time"}
+        self._details_lock = threading.Lock()
+        self._details_loading: set[str] = set()
 
     # -- files ----------------------------------------------------------------------
     def stamp_file(self):
@@ -263,6 +476,9 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
 
     def regions_file(self):
         return store.path("cge", "subprefeituras.json")
+
+    def floods_file(self):
+        return store.path("cge", "alagamentos.json")
 
     def _refresh_regions(self) -> None:
         """Download the outlines when missing or 30 days old. A failure keeps the
@@ -289,6 +505,14 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
             previous = loaded if isinstance(loaded, dict) else {}
         except (UnicodeDecodeError, ValueError):
             pass
+        try:
+            _status, flood_page, _headers = get(FLOODS_URL, 30.0, min_gap=1.0)
+            floods = parse_floods(flood_page.decode("utf-8", "replace"))
+            # Its own file: the flood list and the alert image succeed or fail apart.
+            store.write_bytes(self.floods_file(), json.dumps(
+                {"time": time.time(), "regions": floods}, ensure_ascii=False).encode("utf-8"))
+        except (SourceError, ValueError):
+            pass   # the last list stays, with its own time (not shown once over an hour old)
         since = previous.get("last_modified") if previous.get("regions") else None
         status, image, headers = get(IMAGE_URL, 30.0, min_gap=1.0, if_modified_since=since)
         if status == 304:
@@ -313,6 +537,17 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
             return [], None
         document = json.loads(data.decode("utf-8"))
         outlines = json.loads(shapes.decode("utf-8"))
+        floods, self.floods_time = {}, None
+        try:
+            flood_document = json.loads((store.read_bytes(self.floods_file()) or b"{}").decode("utf-8"))
+            if isinstance(flood_document, dict) and isinstance(flood_document.get("regions"), dict):
+                floods = flood_document["regions"]
+                flood_time = flood_document.get("time")
+                self.floods_time = float(flood_time) if isinstance(flood_time, (int, float)) else None
+        except (UnicodeDecodeError, ValueError):
+            pass
+        cge_names = {code: str(region.get("name") or "").strip()
+                     for code, region in (document.get("regions") or {}).items() if isinstance(region, dict)}
         regions = []
         for code, shape in outlines.items():
             rings = [Ring(points) for points in shape["rings"] if len(points) >= 2]
@@ -320,16 +555,24 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
                 continue
             state = (document.get("regions") or {}).get(code, {}).get("state", "observacao")
             state = state if state in STATES else "observacao"
-            biggest = max(rings, key=lambda ring: (ring.max_lon - ring.min_lon) * (ring.max_lat - ring.min_lat))
-            centre = biggest.points[:-1].mean(axis=0) if len(biggest.points) > 1 else biggest.points[0]
+            lon, lat = _label_point(rings)
+            flood = floods.get(code) if isinstance(floods.get(code), dict) else {}
             regions.append({
-                "id": f"cge-{code}", "code": code, "region": shape.get("name") or code,
+                # The CGE's own name (accents and all) when its image map gave one.
+                "id": f"cge-{code}", "code": code, "region": cge_names.get(code) or shape.get("name") or code,
                 "state": state, "color": STATES[state][0], "rings": rings,
-                "lon": float(centre[0]), "lat": float(centre[1]),
+                "lon": lon, "lat": lat,
+                "zone": _zone_name(code, str(flood.get("zone") or "")),
+                "floods": [point for point in flood.get("points") or [] if isinstance(point, dict)],
+                "area": sum((ring.max_lon - ring.min_lon) * (ring.max_lat - ring.min_lat) for ring in rings),
                 # what InmetAlertsLayer's legend reads
                 "severity": _(STATES[state][1]), "event": _(STATES[state][1]),
             })
         self.regions = regions
+        selected = self.selected
+        if isinstance(selected, dict) and selected.get("code"):
+            # The info box reads the selected dict: point it at the region just read.
+            self.selected = next((region for region in regions if region["code"] == selected["code"]), selected)
         self._generation += 1
         self._cells_key = None          # the inherited warning cells are drawn again too
         flagged = [region for region in regions if region["state"] != "observacao"]
@@ -357,9 +600,68 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
             self._outline_lines = draw_outlines([ring for region in self.regions for ring in region["rings"]], view)
             self._outline_key = outline_key
         if self.data_time is None or self.is_stale() or not self.items:
-            return LayerRender(self._outline_lines, OUTLINE_COLOR)  # old states are not shown as current
+            # Old states are not shown as current; names and flood points still are.
+            return LayerRender(self._outline_lines, OUTLINE_COLOR, markers=self._region_markers(view, set()))
         flagged = super().build(view)
-        return LayerRender(self._outline_lines, OUTLINE_COLOR, markers=flagged.markers, bg_cells=flagged.bg_cells)
+        marked = {region["code"] for region in self.items}
+        markers = [*flagged.markers,
+                   *self._region_markers(view, marked, {(marker.x, marker.y) for marker in flagged.markers})]
+        return LayerRender(self._outline_lines, OUTLINE_COLOR, markers=markers, bg_cells=flagged.bg_cells)
+
+    def _floods_current(self) -> bool:
+        return self.floods_time is not None and time.time() - self.floods_time <= self.stale_after_seconds
+
+    def _region_markers(self, view: View, marked: set[str], taken: set | None = None) -> list[Marker]:
+        """Each region's name from LABEL_MIN_ZOOM on, biggest region first, a name
+        that would cover another one left out; and the number of active flood
+        points after it (below that zoom, a mark alone). `marked` are the regions
+        with a state marker at their point: their text starts after it."""
+        floods_current = self._floods_current()
+        named = view.zoom >= LABEL_MIN_ZOOM
+        taken = set(taken or ())   # cells of the state markers: a name does not cover them
+        markers: list[Marker] = []
+        for region in sorted(self.regions, key=lambda region: -region["area"]):
+            cell = view.to_cell(region["lon"], region["lat"])
+            if cell is None:
+                continue
+            active, _today, colour = flood_summary(region["floods"]) if floods_current else (0, 0, None)
+            if not named and colour is None:
+                continue
+            x = cell[0] + (2 if region["code"] in marked else 0)
+            name = region["region"] if named else ""
+            badge = f"≈{active}" if colour is not None else ""
+            span = {(x + dx, cell[1]) for dx in range(len(name) + (1 if name and badge else 0) + len(badge))}
+            if span & taken:
+                continue
+            taken |= span
+            selected = self._is_selected(region)
+            if name:
+                markers.append(Marker(x, cell[1], LABEL_COLOR, label=name, item=region, selected=selected))
+            if badge:
+                start = x + len(name) + (1 if name else 0)
+                markers.append(Marker(start, cell[1], colour, label=badge, item=region, selected=selected))
+        return markers
+
+    def hit_test_all(self, x: int, y: int, radius: float | None = None):
+        """A click anywhere along a region's name or flood mark selects it."""
+        if radius is None:
+            radius = CLICK_RADIUS
+        hits = []
+        for marker in self.last_markers:
+            if marker.item is None:
+                continue
+            span = len(marker.label) if marker.label else 1
+            dx = max(marker.x - x, 0, x - (marker.x + span - 1))
+            distance = math.hypot(dx, marker.y - y)
+            if distance <= radius:
+                hits.append((distance, marker.item))
+        hits.sort(key=lambda hit: hit[0])
+        seen, unique = set(), []
+        for distance, item in hits:      # a name and its mark are one region
+            if id(item) not in seen:
+                seen.add(id(item))
+                unique.append((distance, item))
+        return unique
 
     def credits(self) -> list[str]:
         """The outlines' source and licence while they are drawn (see the core's
@@ -376,7 +678,8 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
 
     # -- legend and info box ---------------------------------------------------------
     def legend_key(self):
-        return key(*((colour, _(label)) for colour, label in STATES.values()))
+        return key(*((colour, _(label)) for colour, label in STATES.values()),
+                   (PASSABLE_COLOR, _("≈ flood, passable")), (IMPASSABLE_COLOR, _("≈ flood, impassable")))
 
     def legend_lines(self) -> list[SidebarLine]:
         # The base layer's: title with its on/off switch, then the key or what is wrong.
@@ -387,9 +690,60 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
         if not region:
             return []
         updated = time.strftime("%d/%m %H:%M", time.localtime(self.data_time)) if self.data_time else _("N/A")
-        return [
-            (_("REGION"), region["region"]),
-            (_("STATE"), _(STATES[region["state"]][1])),
-            (_("UPDATED"), updated),
-            (_("SOURCE"), "CGE"),
-        ]
+        rows = [(_("REGION"), region["region"])]
+        if region.get("zone"):
+            rows.append((_("ZONE"), region["zone"]))
+        rows.append((_("STATE"), _(STATES[region["state"]][1])))
+        rows.extend(self._flood_rows(region))
+        details = self._region_details(region["code"])
+        rows.append((_("STATION"), details.get("station") or _("loading…")))
+        rows.append((_("FORECAST"), details.get("forecast") or _("loading…")))
+        rows.append((_("UPDATED"), updated))
+        rows.append((_("SOURCE"), "CGE"))
+        return rows
+
+    def _flood_rows(self, region: dict) -> list[tuple[str, str]]:
+        if not self._floods_current():
+            return [(_("FLOODS"), _("N/A"))]
+        points = region.get("floods") or []
+        active, today, _colour = flood_summary(points)
+        if not today:
+            return [(_("FLOODS"), _("none today"))]
+        rows = [(_("FLOODS"), _("%(active)d active · %(today)d today") % {"active": active, "today": today})]
+        # Active points first, then the latest of the day (times are "HH:MM–HH:MM").
+        ordered = sorted(points, key=lambda point: point["time"], reverse=True)
+        ordered.sort(key=lambda point: not point["active"])
+        for point in ordered[:FLOOD_ROWS]:
+            mark = _("impassable") if not point["passable"] else _("passable")
+            when = point["time"] + ("" if point["active"] else " " + _("(over)"))
+            rows.append(("", f"{when} {point['street']} ({mark})"))
+        return rows
+
+    # -- station and forecast of a selected region (background) -------------------------
+    def _region_details(self, code: str) -> dict:
+        """What the info box shows for the region's station and the forecast; asks
+        for them in the background when missing or 10 minutes old."""
+        with self._details_lock:
+            details = self._details.get(code)
+            due = details is None or time.time() - details["time"] >= STATION_SECONDS
+            if due and code not in self._details_loading and config.FETCH_NEW_DATA_FROM_API:
+                self._details_loading.add(code)
+                threading.Thread(target=self._load_details, args=(code,), name="terrascope-br-cge-region",
+                                 daemon=True).start()
+        if details is None and not config.FETCH_NEW_DATA_FROM_API:
+            return {"station": _("offline"), "forecast": _("offline")}
+        return details or {}
+
+    def _load_details(self, code: str) -> None:
+        try:
+            try:
+                station, forecast = region_details(code)
+            except Exception as error:   # noqa: BLE001 - a broken page must not ask again each frame
+                print(f"CGE region {code}: {error!r}", file=sys.stderr)
+                station = forecast = _("unavailable")
+            with self._details_lock:
+                self._details[code] = {"station": station, "forecast": forecast, "time": time.time()}
+        finally:
+            with self._details_lock:
+                self._details_loading.discard(code)
+            self.dirty = True

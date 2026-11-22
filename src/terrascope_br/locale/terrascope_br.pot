@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-22 02:34-0300\n"
+"POT-Creation-Date: 2026-11-22 14:50-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -52,13 +52,13 @@ msgstr ""
 
 #: src/terrascope_br/base.py:169
 #: src/terrascope_br/sources/global_weather.py:250
-#: src/terrascope_br/sources/global_weather.py:413
+#: src/terrascope_br/sources/global_weather.py:417
 msgid "on"
 msgstr ""
 
 #: src/terrascope_br/base.py:169
 #: src/terrascope_br/sources/global_weather.py:250
-#: src/terrascope_br/sources/global_weather.py:413
+#: src/terrascope_br/sources/global_weather.py:417
 msgid "off"
 msgstr ""
 
@@ -72,60 +72,174 @@ msgid ""
 "and temperature cropped to Brazil"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:67
+#: src/terrascope_br/sources/cge.py:82
 msgid "watch"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:68
+#: src/terrascope_br/sources/cge.py:83
 msgid "attention"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:69
+#: src/terrascope_br/sources/cge.py:84
 msgid "overflow imminent"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:70
+#: src/terrascope_br/sources/cge.py:85
 msgid "alert"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:245
+#: src/terrascope_br/sources/cge.py:274
+msgid "Centre"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:275
+msgid "North zone"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:276
+msgid "West zone"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:277
+msgid "South zone"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:278
+msgid "East zone"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:389
+msgid "needs a newer Terrascope"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:396
+msgid "no CGE station in this region"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:405
+#, python-format
+msgid "rain %s"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:407
+#, python-format
+msgid "wind %s"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:410
+msgid "station unavailable"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:413
+msgid "today"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:413
+msgid "tomorrow"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:417
+msgid "(whole city: the CGE gives no forecast by region)"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:418
+msgid "forecast unavailable"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:440
 msgid "CGE flood risk, São Paulo city"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:246
+#: src/terrascope_br/sources/cge.py:441
 msgid "CGE REGION"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:371
+#: src/terrascope_br/sources/cge.py:645
 msgid "GeoSampa (CC BY-SA 4.0), City of São Paulo"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:389 src/terrascope_br/sources/iag.py:216
-#: src/terrascope_br/sources/iag.py:217 src/terrascope_br/sources/inmet.py:312
+#: src/terrascope_br/sources/cge.py:654
+msgid "≈ flood, passable"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:654
+msgid "≈ flood, impassable"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:664 src/terrascope_br/sources/cge.py:679
+#: src/terrascope_br/sources/iag.py:216 src/terrascope_br/sources/iag.py:217
+#: src/terrascope_br/sources/inmet.py:312
 #: src/terrascope_br/sources/inmet.py:314
 #: src/terrascope_br/sources/spaguas.py:144
 msgid "N/A"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:391
+#: src/terrascope_br/sources/cge.py:665
 msgid "REGION"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:392 src/terrascope_br/sources/ibge.py:308
+#: src/terrascope_br/sources/cge.py:667
+msgid "ZONE"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:668 src/terrascope_br/sources/ibge.py:308
 msgid "STATE"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:392
+#: src/terrascope_br/sources/cge.py:668
 msgid "state"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:393
+#: src/terrascope_br/sources/cge.py:671
+#: src/terrascope_br/sources/spaguas.py:148
+msgid "STATION"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:671 src/terrascope_br/sources/cge.py:672
+msgid "loading…"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:672
+msgid "FORECAST"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:673
 #: src/terrascope_br/sources/spaguas.py:152
 msgid "UPDATED"
 msgstr ""
 
-#: src/terrascope_br/sources/cge.py:394 src/terrascope_br/sources/iag.py:219
+#: src/terrascope_br/sources/cge.py:674 src/terrascope_br/sources/iag.py:219
 msgid "SOURCE"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:679 src/terrascope_br/sources/cge.py:683
+#: src/terrascope_br/sources/cge.py:684
+msgid "FLOODS"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:683
+msgid "none today"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:684
+#, python-format
+msgid "%(active)d active · %(today)d today"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:688
+msgid "impassable"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:688
+msgid "passable"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:689
+msgid "(over)"
+msgstr ""
+
+#: src/terrascope_br/sources/cge.py:705
+msgid "offline"
 msgstr ""
 
 #: src/terrascope_br/sources/chuva_online.py:138
@@ -170,19 +284,19 @@ msgstr ""
 msgid "Global rain (RainViewer, dBZ)"
 msgstr ""
 
-#: src/terrascope_br/sources/global_weather.py:411
+#: src/terrascope_br/sources/global_weather.py:415
 msgid "City temperature, relative (Open-Meteo)"
 msgstr ""
 
-#: src/terrascope_br/sources/global_weather.py:425
+#: src/terrascope_br/sources/global_weather.py:429
 msgid "cold"
 msgstr ""
 
-#: src/terrascope_br/sources/global_weather.py:426
+#: src/terrascope_br/sources/global_weather.py:430
 msgid "hot"
 msgstr ""
 
-#: src/terrascope_br/sources/global_weather.py:427
+#: src/terrascope_br/sources/global_weather.py:431
 msgid "no data"
 msgstr ""
 
@@ -357,10 +471,6 @@ msgstr ""
 
 #: src/terrascope_br/sources/spaguas.py:137
 msgid "25+ mm"
-msgstr ""
-
-#: src/terrascope_br/sources/spaguas.py:148
-msgid "STATION"
 msgstr ""
 
 #: src/terrascope_br/sources/spaguas.py:149

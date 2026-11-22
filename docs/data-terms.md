@@ -30,6 +30,7 @@ Certainty:
 | IAG-USP Chuva Online radar | `https://www.starnet.iag.usp.br/img_starnet/Radar_USP/pelletron_36km/loop/36km_loop_{index}.png` (10 frames) | `sources/chuva_online.py` |
 | CGE São Paulo (section 7) | `https://www.cgesp.org/v3/previsao_estendida.jsp`, `https://www.cgesp.org/v3/estacao.jsp?POSTO=503` | `sources/weather_providers.py` |
 | CGE São Paulo alert map (section 7) | `https://www.cgesp.org/v3/mapas.jsp?arq=alertas`, `https://www.cgesp.org/cgesp/mapa_sp_geoserver.png` | `sources/cge.py` |
+| CGE São Paulo by region (section 7) | `https://www.cgesp.org/v3/alagamentos.jsp` (every 5 min with the states), `https://www.cgesp.org/v3/estacoes-meteorologicas.jsp` (kept a day), `https://www.cgesp.org/v3/estacao.jsp?POSTO={station}` (when a region is selected, kept 10 min) | `sources/cge.py` |
 | GeoSampa subprefeituras (section 10) | `https://wms.geosampa.prefeitura.sp.gov.br/geoserver/geoportal/wfs?...&typeNames=geoportal:subprefeitura&outputFormat=application/json` | `sources/cge.py` |
 | INMET forecast (section 8) | `https://apiprevmet3.inmet.gov.br/previsao/{IBGE code}` | `sources/weather_providers.py` |
 | INMET stations (section 8) | `https://apiprevmet3.inmet.gov.br/estacao/proxima/{IBGE code}` (no key), `https://apitempo.inmet.gov.br/estacoes/T` (no key), `https://apitempo.inmet.gov.br/token/estacao/{start}/{end}/{station}/{key}` (with a key) | `sources/weather_providers.py` |
