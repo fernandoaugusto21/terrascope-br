@@ -97,7 +97,7 @@ def layer():
     made = cge.CgeAlertsLayer()
     made.enabled = True
     yield made
-    for name in ("subprefeituras.json", "alertas.json"):
+    for name in ("subprefeituras.json", "alertas.json", "alagamentos.json"):
         store.path("cge", name).unlink(missing_ok=True)
 
 
@@ -328,11 +328,10 @@ def test_the_station_list_maps_27_regions_to_their_station():
     assert "CV" not in stations   # Casa Verde has no station of its own
 
 
-def _write_floods(floods_time: float | None = None) -> None:
-    _write({"SE": "atencao"})
-    document = json.loads(store.read_bytes(store.path("cge", "alertas.json")).decode())
-    document.update({"floods": cge.parse_floods(FLOODS), "floods_time": floods_time or time.time()})
-    store.write_bytes(store.path("cge", "alertas.json"), json.dumps(document).encode())
+def _write_floods(floods_time: float | None = None, states: dict | None = None) -> None:
+    _write({"SE": "atencao"} if states is None else states)
+    store.write_bytes(store.path("cge", "alagamentos.json"), json.dumps(
+        {"time": floods_time or time.time(), "regions": cge.parse_floods(FLOODS)}).encode())
 
 
 ZOOMED = View(-46.65, -23.55, 256, 160, 60)
@@ -420,6 +419,70 @@ def test_a_failed_flood_list_keeps_the_states_updating(layer, monkeypatch):
     layer.fetch()
     layer.reload()
     assert [item["state"] for item in layer.items] == ["alerta"] and layer.floods_time is None
+
+
+def test_a_failed_alert_image_keeps_the_flood_list(layer, monkeypatch):
+    def fake_get(url, timeout, min_gap=1.0, if_modified_since=None):
+        if url == cge.REGIONS_URL:
+            return 200, json.dumps(REGIONS).encode(), {}
+        if url == cge.FLOODS_URL:
+            return 200, FLOODS.encode(), {}
+        raise cge.SourceError("HTTP 503")
+
+    monkeypatch.setattr(cge, "get", fake_get)
+    with pytest.raises(cge.SourceError):
+        layer.fetch()
+    _write({})
+    layer.reload()
+    assert layer.floods_time is not None
+    assert {region["code"] for region in layer.regions if region["floods"]} == {"MG", "PJ", "LA", "PI", "MO"}
+
+
+def test_the_selected_region_follows_a_reload(layer):
+    _write({})
+    layer.reload()
+    layer.selected = next(region for region in layer.regions if region["code"] == "PJ")
+    _write_floods(states={"PJ": "alerta"})
+    layer.reload()
+    assert layer.selected["state"] == "alerta" and layer.selected["floods"]
+
+
+def test_active_points_first_then_the_latest():
+    points = [{"active": False, "passable": True, "time": f"{hour:02d}:00–{hour:02d}:30", "street": f"R {hour}"}
+              for hour in (8, 12, 17, 18, 19)] + [{"active": True, "passable": False, "time": "09:00–", "street": "AV A"}]
+    layer = cge.CgeAlertsLayer()
+    layer.floods_time = time.time()
+    rows = layer._flood_rows({"floods": points})
+    assert [value.split(" ")[0] for _name, value in rows[1:]] == ["09:00–", "19:00–19:30", "18:00–18:30"]
+
+
+def test_today_and_tomorrow_are_matched_by_date(monkeypatch):
+    from datetime import datetime, timedelta
+
+    from terrascope_br.sources import weather_providers as wp
+
+    pages = {cge.STATIONS_URL: STATIONS_PAGE, wp.CGE_FORECAST_URL: FORECAST_PAGE}
+    monkeypatch.setattr(wp, "_page", lambda url, keep: pages[url])
+    first = datetime.fromisoformat(wp.parse_cge_forecast(FORECAST_PAGE)[0]["date"] + "T21:00")
+    evening_before = (first - timedelta(days=1)).replace(tzinfo=wp.SAO_PAULO_TIME)
+    _station, forecast = cge.region_details("CV", evening_before)   # the forecast starts tomorrow
+    assert not forecast.startswith(cge._("today")) and forecast.startswith(cge._("tomorrow"))
+
+
+def test_names_keep_clear_of_the_state_markers(layer):
+    _write_floods(states={code: "alerta" for code in cge.REGION_CODES.values()})
+    layer.reload()
+    markers = layer.build(ZOOMED).markers
+    glyphs = {(marker.x, marker.y) for marker in markers if marker.glyph}
+    labelled = {(marker.x + dx, marker.y) for marker in markers if marker.label for dx in range(len(marker.label))}
+    assert glyphs and not glyphs & labelled
+
+
+def test_the_zone_is_in_the_interface_language(layer):
+    _write_floods()
+    layer.reload()
+    by_code = {region["code"]: region["zone"] for region in layer.regions}
+    assert by_code["MG"] == by_code["CV"] == cge._("North zone")   # one from the list, one from the table
 
 
 def test_every_region_has_a_zone_even_on_a_day_without_floods(layer):

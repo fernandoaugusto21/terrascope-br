@@ -46,8 +46,9 @@ import math
 import re
 import threading
 import time
+import sys
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timedelta
 from email.utils import parsedate_to_datetime
 
 import numpy as np
@@ -277,6 +278,9 @@ REGION_ZONES = {
     **dict.fromkeys(("VM", "IP", "JA", "SA", "CL", "MB", "AD", "CS", "PA"), N_("South zone")),
     **dict.fromkeys(("MO", "VP", "SB", "AF", "PE", "EM", "MP", "IQ", "SM", "IT", "GU", "CT"), N_("East zone")),
 }
+# The flood list's zone titles -> the same zones as REGION_ZONES (shown translated).
+ZONE_TITLES = {"centro": N_("Centre"), "zona norte": N_("North zone"), "zona oeste": N_("West zone"),
+               "zona sul": N_("South zone"), "zona leste": N_("East zone")}
 PASSABLE_COLOR = "#ffd60a"
 IMPASSABLE_COLOR = "#ff3b30"
 LABEL_COLOR = "#c9d1d9"
@@ -345,6 +349,13 @@ def parse_station_list(page: str) -> dict[str, str]:
     return found
 
 
+def _zone_name(code: str, title: str) -> str:
+    """The region's zone in the interface language: the flood list's title when it
+    gave one it knows, else the fixed table; an unknown title as the CGE wrote it."""
+    zone = ZONE_TITLES.get(_plain(title)) or REGION_ZONES.get(code)
+    return _(zone) if zone else title
+
+
 def flood_summary(points: list[dict]) -> tuple[int, int, str | None]:
     """(active points, points of the day, marker colour or None): red when an
     active point is impassable, yellow when the active ones are passable."""
@@ -408,9 +419,12 @@ def region_details(code: str, now: datetime | None = None) -> tuple[str, str]:
             station = " · ".join(part for part in parts if part)
     except (wp.WeatherFetchError, ValueError):
         station = _("station unavailable")
-    days = [day for day in forecast if day.get("date", "") >= now.date().isoformat()][:2]
+    by_date = {day.get("date"): day for day in forecast}
     texts = []
-    for name, day in zip((_("today"), _("tomorrow")), days):
+    for name, date in ((_("today"), now.date()), (_("tomorrow"), now.date() + timedelta(days=1))):
+        day = by_date.get(date.isoformat())
+        if day is None:
+            continue
         low, high = day.get("tmin"), day.get("tmax")
         span = f" {low:.0f}–{high:.0f} °C" if low is not None and high is not None else ""
         texts.append(f"{name}: {day.get('summary') or '—'}{span}")
@@ -463,6 +477,9 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
     def regions_file(self):
         return store.path("cge", "subprefeituras.json")
 
+    def floods_file(self):
+        return store.path("cge", "alagamentos.json")
+
     def _refresh_regions(self) -> None:
         """Download the outlines when missing or 30 days old. A failure keeps the
         outlines in the cache (raises only when there are none) and is not tried
@@ -488,19 +505,19 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
             previous = loaded if isinstance(loaded, dict) else {}
         except (UnicodeDecodeError, ValueError):
             pass
-        floods = {key: previous[key] for key in ("floods", "floods_time") if key in previous}
         try:
             _status, flood_page, _headers = get(FLOODS_URL, 30.0, min_gap=1.0)
-            floods = {"floods": parse_floods(flood_page.decode("utf-8", "replace")), "floods_time": time.time()}
-        except (SourceError, ValueError) as error:
-            # The states still update; the last flood list stays, with its own time.
-            floods["floods_error"] = str(error)
+            floods = parse_floods(flood_page.decode("utf-8", "replace"))
+            # Its own file: the flood list and the alert image succeed or fail apart.
+            store.write_bytes(self.floods_file(), json.dumps(
+                {"time": time.time(), "regions": floods}, ensure_ascii=False).encode("utf-8"))
+        except (SourceError, ValueError):
+            pass   # the last list stays, with its own time (not shown once over an hour old)
         since = previous.get("last_modified") if previous.get("regions") else None
         status, image, headers = get(IMAGE_URL, 30.0, min_gap=1.0, if_modified_since=since)
         if status == 304:
             # The same image: nothing to read again; the file's new age says it was checked.
-            previous.pop("floods_error", None)
-            store.write_bytes(self.stamp_file(), json.dumps({**previous, **floods}, ensure_ascii=False).encode("utf-8"))
+            store.write_bytes(self.stamp_file(), json.dumps(previous, ensure_ascii=False).encode("utf-8"))
             return
         _status, page, _headers = get(PAGE_URL, 30.0, min_gap=1.0)
         try:
@@ -509,7 +526,7 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
             raise SourceError(f"CGE alert map: {error}") from error
         modified = next((value for name, value in (headers or {}).items() if name.lower() == "last-modified"), None)
         store.write_bytes(self.stamp_file(), json.dumps(
-            {"time": _modified(headers), "last_modified": modified, "regions": states, **floods},
+            {"time": _modified(headers), "last_modified": modified, "regions": states},
             ensure_ascii=False).encode("utf-8"))
 
     def parse(self):
@@ -520,11 +537,17 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
             return [], None
         document = json.loads(data.decode("utf-8"))
         outlines = json.loads(shapes.decode("utf-8"))
-        floods = document.get("floods") if isinstance(document.get("floods"), dict) else {}
+        floods, self.floods_time = {}, None
+        try:
+            flood_document = json.loads((store.read_bytes(self.floods_file()) or b"{}").decode("utf-8"))
+            if isinstance(flood_document, dict) and isinstance(flood_document.get("regions"), dict):
+                floods = flood_document["regions"]
+                flood_time = flood_document.get("time")
+                self.floods_time = float(flood_time) if isinstance(flood_time, (int, float)) else None
+        except (UnicodeDecodeError, ValueError):
+            pass
         cge_names = {code: str(region.get("name") or "").strip()
                      for code, region in (document.get("regions") or {}).items() if isinstance(region, dict)}
-        floods_time = document.get("floods_time")
-        self.floods_time = float(floods_time) if isinstance(floods_time, (int, float)) else None
         regions = []
         for code, shape in outlines.items():
             rings = [Ring(points) for points in shape["rings"] if len(points) >= 2]
@@ -539,13 +562,17 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
                 "id": f"cge-{code}", "code": code, "region": cge_names.get(code) or shape.get("name") or code,
                 "state": state, "color": STATES[state][0], "rings": rings,
                 "lon": lon, "lat": lat,
-                "zone": str(flood.get("zone") or "") or (_(REGION_ZONES[code]) if code in REGION_ZONES else ""),
+                "zone": _zone_name(code, str(flood.get("zone") or "")),
                 "floods": [point for point in flood.get("points") or [] if isinstance(point, dict)],
                 "area": sum((ring.max_lon - ring.min_lon) * (ring.max_lat - ring.min_lat) for ring in rings),
                 # what InmetAlertsLayer's legend reads
                 "severity": _(STATES[state][1]), "event": _(STATES[state][1]),
             })
         self.regions = regions
+        selected = self.selected
+        if isinstance(selected, dict) and selected.get("code"):
+            # The info box reads the selected dict: point it at the region just read.
+            self.selected = next((region for region in regions if region["code"] == selected["code"]), selected)
         self._generation += 1
         self._cells_key = None          # the inherited warning cells are drawn again too
         flagged = [region for region in regions if region["state"] != "observacao"]
@@ -577,20 +604,21 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
             return LayerRender(self._outline_lines, OUTLINE_COLOR, markers=self._region_markers(view, set()))
         flagged = super().build(view)
         marked = {region["code"] for region in self.items}
-        markers = [*flagged.markers, *self._region_markers(view, marked)]
+        markers = [*flagged.markers,
+                   *self._region_markers(view, marked, {(marker.x, marker.y) for marker in flagged.markers})]
         return LayerRender(self._outline_lines, OUTLINE_COLOR, markers=markers, bg_cells=flagged.bg_cells)
 
     def _floods_current(self) -> bool:
         return self.floods_time is not None and time.time() - self.floods_time <= self.stale_after_seconds
 
-    def _region_markers(self, view: View, marked: set[str]) -> list[Marker]:
+    def _region_markers(self, view: View, marked: set[str], taken: set | None = None) -> list[Marker]:
         """Each region's name from LABEL_MIN_ZOOM on, biggest region first, a name
         that would cover another one left out; and the number of active flood
         points after it (below that zoom, a mark alone). `marked` are the regions
         with a state marker at their point: their text starts after it."""
         floods_current = self._floods_current()
         named = view.zoom >= LABEL_MIN_ZOOM
-        taken: set[tuple[int, int]] = set()
+        taken = set(taken or ())   # cells of the state markers: a name does not cover them
         markers: list[Marker] = []
         for region in sorted(self.regions, key=lambda region: -region["area"]):
             cell = view.to_cell(region["lon"], region["lat"])
@@ -682,8 +710,9 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
         if not today:
             return [(_("FLOODS"), _("none today"))]
         rows = [(_("FLOODS"), _("%(active)d active · %(today)d today") % {"active": active, "today": today})]
-        # Active points first, then the latest of the day.
-        ordered = sorted(points, key=lambda point: (not point["active"], point["time"]), reverse=False)
+        # Active points first, then the latest of the day (times are "HH:MM–HH:MM").
+        ordered = sorted(points, key=lambda point: point["time"], reverse=True)
+        ordered.sort(key=lambda point: not point["active"])
         for point in ordered[:FLOOD_ROWS]:
             mark = _("impassable") if not point["passable"] else _("passable")
             when = point["time"] + ("" if point["active"] else " " + _("(over)"))
@@ -707,7 +736,11 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
 
     def _load_details(self, code: str) -> None:
         try:
-            station, forecast = region_details(code)
+            try:
+                station, forecast = region_details(code)
+            except Exception as error:   # noqa: BLE001 - a broken page must not ask again each frame
+                print(f"CGE region {code}: {error!r}", file=sys.stderr)
+                station = forecast = _("unavailable")
             with self._details_lock:
                 self._details[code] = {"station": station, "forecast": forecast, "time": time.time()}
         finally:
