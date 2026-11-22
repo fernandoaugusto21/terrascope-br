@@ -24,7 +24,7 @@ import json
 import numpy as np
 from PIL import Image, ImageDraw
 
-from terrascope.core.layer import LayerRender, Marker
+from terrascope.core.layer import LayerRender, Marker, SidebarLine
 from terrascope.core.view import BRAILLE_BIT_WEIGHTS, View
 
 from terrascope_br import roads_format, store
@@ -50,6 +50,7 @@ COLOURS = {
     "tertiary": "#7fb8e6",
     "residential": "#9aa5b1",
 }
+LEGEND_ROW = 2                         # classes per legend row (three rows: see legend_lines)
 # Legend labels, marked for translation (read with _() when the legend is built).
 LABELS = {
     "motorway": N_("motorway"),
@@ -79,7 +80,7 @@ class RoadsLayer(SourceLayer):
     name = "br_viario"
     toggle_key = ""                              # the legend line switches it (like br_inundation_cge)
     switch_action = "br_viario.toggle"
-    source_name = _("Roads (OpenStreetMap)")
+    source_name = _("Roads (OSM)")
     info_title = _("ROAD")
     credit = "OpenStreetMap"
     refresh_seconds = CHECK_SECONDS
@@ -216,6 +217,18 @@ class RoadsLayer(SourceLayer):
     # -- legend -------------------------------------------------------------------------
     def legend_key(self):
         return key(*((COLOURS[name], _(LABELS[name])) for name in COLOURS))
+
+    def legend_lines(self) -> list[SidebarLine]:
+        # The six classes are wrapped onto short rows, two to a row: one row of all six is
+        # about 90 columns, and a row of three is up to 48 (pt_BR); both would cover the map's
+        # credits line at the left and the scale bar.
+        lines = super().legend_lines()
+        if not self.shown or self.has_problem():
+            return lines
+        items = self.legend_key()
+        rows = [SidebarLine(text="", legend_items=items[start:start + LEGEND_ROW])
+                for start in range(0, len(items), LEGEND_ROW)]
+        return lines[:1] + rows
 
 
 def _latest_asset() -> str:

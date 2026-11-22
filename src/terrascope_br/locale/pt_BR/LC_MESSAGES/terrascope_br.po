@@ -474,8 +474,8 @@ msgid "local streets"
 msgstr "ruas locais"
 
 #: src/terrascope_br/sources/roads.py:82
-msgid "Roads (OpenStreetMap)"
-msgstr "Viário (OpenStreetMap)"
+msgid "Roads (OSM)"
+msgstr "Viário (OSM)"
 
 #: src/terrascope_br/sources/roads.py:83
 msgid "ROAD"

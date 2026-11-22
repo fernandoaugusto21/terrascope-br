@@ -467,7 +467,7 @@ msgid "local streets"
 msgstr ""
 
 #: src/terrascope_br/sources/roads.py:82
-msgid "Roads (OpenStreetMap)"
+msgid "Roads (OSM)"
 msgstr ""
 
 #: src/terrascope_br/sources/roads.py:83

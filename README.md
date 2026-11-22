@@ -158,6 +158,8 @@ Each layer uses at most two legend lines: its title, then either its colour key 
 attention (no data yet, last update failed, or no update since a time). Credits are not repeated in the legend; they
 are in the BRASIL tab's attribution line.
 
+The road layer (`br_viario`) wraps its six classes onto three rows of two, so it uses four lines.
+
 ## City weather in Brazil
 
 The plugin registers two weather providers (core entry point `terrascope.weather_providers`), used for every city

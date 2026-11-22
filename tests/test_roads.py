@@ -422,3 +422,31 @@ def test_pbf_reader_keeps_the_roads_with_a_node_in_the_box(tmp_path):
     assert list(ways) == [10]
     assert ways[10][0] == "motorway"
     assert ways[10][1].shape == (2, 2)
+
+
+def _row_width(line):
+    """Columns a legend row takes: each item is its glyph, a space and its label; items are two apart."""
+    items = line.legend_items
+    return sum(len(glyph) + 1 + len(label) for glyph, _colour, label in items) + 2 * (len(items) - 1)
+
+
+@pytest.mark.parametrize("language", ["en", "pt_BR"])
+def test_legend_rows_fit_a_narrow_width(cache, tmp_path, language):
+    """The six classes wrap onto short rows (the credits line and the scale bar must stay clear)."""
+    from terrascope.core import i18n
+
+    i18n.activate(language)
+    try:
+        layer = roads.RoadsLayer()
+        layer.shown = True
+        layer.data_time = time.time()
+        lines = layer.legend_lines()
+        assert len(lines) == 4          # title, then three rows of two classes
+        # The title line is the last line of the block when the sidebar is full (the core then stacks it
+        # on the credits row), so it stays short: the credits (GeoSampa, pt-BR about 48 columns) must show.
+        assert len(lines[0].text) <= 14, lines[0].text
+        rows = lines[1:]
+        assert sum(len(row.legend_items) for row in rows) == len(roads.COLOURS)
+        assert all(_row_width(row) <= 32 for row in rows), [_row_width(row) for row in rows]
+    finally:
+        i18n.activate("en")
