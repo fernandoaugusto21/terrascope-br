@@ -264,6 +264,10 @@ class GlobalTempLayer(WeatherLayer):
     name = "br_global_temp"
     toggle_key = "m"
     enabled = False  # the BRASIL tab switches it on
+    # Its cities are Brazil's: their saved readings (CGE, INMET...) win over the core
+    # weather layer's in the shared cache file; elsewhere the core's stand. Ignored by
+    # a core without cache owners.
+    weather_sovereign = True
 
     def __init__(self) -> None:
         super().__init__()
