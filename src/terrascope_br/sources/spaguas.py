@@ -1,6 +1,11 @@
 """SP Águas rain gauges (SIBH): one reading per station for the last hour.
 Stations come from CEMADEN, IAC, ANA, SABESP, SP Águas and SAISP. The city
-name comes from the IBGE code in the reading (see ibge.py)."""
+name comes from the IBGE code in the reading (see ibge.py).
+
+INACTIVE: the layer is not registered (no `terrascope.layers` entry point) and
+fetches nothing while ENABLED is False; the code is kept for later use. To bring it
+back: set ENABLED = True, restore the entry point in pyproject.toml, add the layer
+to the BRASIL tab and its name to the tab's data line and to __main__.EXPECTED_LAYERS."""
 
 from __future__ import annotations
 
@@ -16,6 +21,7 @@ from terrascope_br.base import SourceLayer, key
 from terrascope_br.sources.ibge import ensure_municipality_names, municipality_names
 from terrascope_br.net import SourceError, get
 
+ENABLED = False  # hard-coded: no request to SP Águas until the source is wanted again
 MEASUREMENTS_URL = "https://apps.spaguas.sp.gov.br/sibh/api/v2/measurements/now?station_type_id=2&hours=1"
 # (lower limit in mm, colour), from the lightest rain up. Zero rain is dimmed.
 RAIN_BANDS = ((0.0, "#8fd3ff"), (2.0, "#2e86de"), (10.0, "#f7b731"), (25.0, "#eb3b5a"))
@@ -79,6 +85,8 @@ class RainGaugeLayer(SourceLayer):
         return store.path("spaguas", "measurements.json")
 
     def fetch(self) -> None:
+        if not ENABLED:
+            raise SourceError("SP Águas rain gauges are switched off in this version (spaguas.ENABLED)")
         _status, body, _headers = get(MEASUREMENTS_URL, 30.0, min_gap=1.0)
         try:
             parse_measurements(body, {})

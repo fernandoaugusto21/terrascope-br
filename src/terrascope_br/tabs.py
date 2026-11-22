@@ -14,7 +14,7 @@ def _core_names_layer_credits() -> bool:
     return callable(getattr(Layer, "credits", None))
 
 def brasil_tabs() -> list[dict]:
-    attribution = _("Data: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, CGE, RainViewer, Open-Meteo")
+    attribution = _("Data: IBGE, INPE, IAG-USP, USGS, INMET, CGE, RainViewer, Open-Meteo")
     if not _core_names_layer_credits():
         # An older core does not draw the layers' credits: GeoSampa (CC BY-SA 4.0 asks to
         # be named) goes in the tab's line instead.
@@ -24,7 +24,7 @@ def brasil_tabs() -> list[dict]:
             "name": "brasil",
             "label": "BRASIL",
             "color": "#e15759",
-            "blurb": _("Brazil: state and city outlines, fires, quakes, rain gauges, radar, and global rain and temperature cropped to Brazil"),
+            "blurb": _("Brazil: state and city outlines, fires, quakes, radar, and global rain and temperature cropped to Brazil"),
             "layers": [
                 "basemap",
                 "br_global_rain",
@@ -33,7 +33,6 @@ def brasil_tabs() -> list[dict]:
                 "br_municipios",
                 "br_fires",
                 "br_quakes",
-                "br_gauges",
                 "br_radar",
                 "br_inmet_alerts",
                 "br_inundation_cge",

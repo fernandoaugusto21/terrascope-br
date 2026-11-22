@@ -45,7 +45,7 @@ br_ufs = "terrascope_br.sources.ibge:StateOutlinesLayer"
 br_municipios = "terrascope_br.sources.ibge:MunicipalityOutlinesLayer"
 br_fires = "terrascope_br.sources.inpe:FireLayer"
 br_quakes = "terrascope_br.sources.iag:QuakeLayer"
-br_gauges = "terrascope_br.sources.spaguas:RainGaugeLayer"
+# br_gauges (terrascope_br.sources.spaguas:RainGaugeLayer) is inactive: see spaguas.ENABLED.
 br_radar = "terrascope_br.sources.chuva_online:RadarLayer"
 br_inmet_alerts = "terrascope_br.sources.inmet:InmetAlertsLayer"
 br_inundation_cge = "terrascope_br.sources.cge:CgeAlertsLayer"

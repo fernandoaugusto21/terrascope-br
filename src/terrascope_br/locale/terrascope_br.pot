@@ -63,15 +63,13 @@ msgid "off"
 msgstr ""
 
 #: src/terrascope_br/tabs.py:17
-msgid ""
-"Data: IBGE, INPE, IAG-USP, SP Águas, USGS, INMET, CGE, RainViewer, Open-"
-"Meteo"
+msgid "Data: IBGE, INPE, IAG-USP, USGS, INMET, CGE, RainViewer, Open-Meteo"
 msgstr ""
 
 #: src/terrascope_br/tabs.py:27
 msgid ""
-"Brazil: state and city outlines, fires, quakes, rain gauges, radar, and "
-"global rain and temperature cropped to Brazil"
+"Brazil: state and city outlines, fires, quakes, radar, and global rain and "
+"temperature cropped to Brazil"
 msgstr ""
 
 #: src/terrascope_br/sources/cge.py:67
