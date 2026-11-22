@@ -11,23 +11,29 @@ on:
   workflow_dispatch:
     inputs:
       core_ref:
-        description: Branch, tag or commit of fernandoaugusto21/Terrascope to build with
+        description: Branch, tag or full commit of fernandoaugusto21/Terrascope to build with
         required: false
         default: main
         type: string
-  # Sent by the core repository when its main branch changes (needs a token there;
-  # see README, "Windows build").
+  # Sent by the core repository when its main branch changes, with the commit in
+  # client_payload.core (needs a token there; see README, "Windows build").
   repository_dispatch:
     types: [core-main]
   # Without that token: once a day, build when the core's main has moved.
   schedule:
     - cron: "17 6 * * *"
 
+# One build at a time, so two publishes never race; none is cancelled.
+concurrency:
+  group: windows-build
+  cancel-in-progress: false
+
 permissions:
   contents: read
 
 env:
   CORE_REPO: fernandoaugusto21/Terrascope
+  KEEP_RELEASES: 10
 
 jobs:
   build:
@@ -35,6 +41,7 @@ jobs:
     outputs:
       tag: ${{ steps.names.outputs.tag }}
       skip: ${{ steps.names.outputs.skip }}
+      latest: ${{ steps.names.outputs.latest }}
     defaults:
       run:
         shell: bash
@@ -49,26 +56,48 @@ jobs:
         id: names
         env:
           GH_TOKEN: ${{ github.token }}
-          CORE_REF: ${{ inputs.core_ref || 'main' }}
+          EVENT: ${{ github.event_name }}
+          # The commit the core sent, the ref asked by hand, or main.
+          CORE_REF: ${{ github.event.client_payload.core || inputs.core_ref || 'main' }}
         run: |
-          core_sha=$(git ls-remote "https://github.com/$CORE_REPO" "$CORE_REF" | head -1 | cut -f1)
-          if [ -z "$core_sha" ]; then core_sha="$CORE_REF"; fi   # a commit given as is
+          set -euo pipefail
+          url="https://github.com/$CORE_REPO"
+          if [[ "$CORE_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            core_sha="$CORE_REF"
+          else
+            core_sha=$(git ls-remote "$url" "refs/heads/$CORE_REF" | cut -f1)
+            if [ -z "$core_sha" ]; then   # a tag: the commit it points to
+              core_sha=$(git ls-remote "$url" "refs/tags/$CORE_REF^{}" "refs/tags/$CORE_REF" | head -1 | cut -f1)
+            fi
+          fi
+          if ! [[ "$core_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::no branch, tag or full commit '$CORE_REF' in $CORE_REPO"
+            exit 1
+          fi
+          main_sha=$(git ls-remote "$url" refs/heads/main | cut -f1)
+          latest=false
+          if [ "$core_sha" = "$main_sha" ]; then latest=true; fi   # only a build of the core's main is "latest"
           br_sha=$(git rev-parse HEAD)
           tag="windows-${core_sha:0:7}-br${br_sha:0:7}"
           skip=false
-          if [ "${{ github.event_name }}" = "schedule" ] && gh release view "$tag" >/dev/null 2>&1; then
-            skip=true   # this core and this plugin were built already
+          if [ "$EVENT" != "pull_request" ] && gh release view "$tag" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            skip=true   # this core and this plugin were built and published already
           fi
-          echo "core_sha=$core_sha" >> "$GITHUB_OUTPUT"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "skip=$skip" >> "$GITHUB_OUTPUT"
-          echo "build $tag (skip: $skip)"
+          {
+            echo "core_sha=$core_sha"
+            echo "tag=$tag"
+            echo "skip=$skip"
+            echo "latest=$latest"
+          } >> "$GITHUB_OUTPUT"
+          echo "build $tag (core $core_sha, latest: $latest, skip: $skip)"
 
       - name: Install the core, the plugin and PyInstaller
         if: steps.names.outputs.skip != 'true'
+        env:
+          CORE_SHA: ${{ steps.names.outputs.core_sha }}
         run: |
           python -m pip install --upgrade pip
-          python -m pip install "terrascope @ git+https://github.com/$CORE_REPO@${{ steps.names.outputs.core_sha }}"
+          python -m pip install "terrascope @ git+https://github.com/$CORE_REPO@$CORE_SHA"
           python -m pip install . pyinstaller
           python -m terrascope_br
 
@@ -96,23 +125,28 @@ jobs:
           dist/terrascope.exe --list-tabs | tee tabs.txt
           grep -q "plugin:terrascope-br" tabs.txt
           dist/terrascope.exe --list-layers | tee layers.txt
+          # The plugin's registered layers (the SP Águas gauges are inactive and must not be).
           for layer in br_ufs br_municipios br_fires br_quakes br_radar br_inmet_alerts br_inundation_cge \
                        br_global_rain br_global_temp; do
-            grep -q "^$layer" layers.txt || { echo "missing layer $layer"; exit 1; }
+            grep -q "^$layer" layers.txt || { echo "::error::missing layer $layer"; exit 1; }
           done
+          if grep -q "^br_gauges" layers.txt; then echo "::error::br_gauges is registered"; exit 1; fi
 
       - name: Zip and write the Scoop manifest
         if: steps.names.outputs.skip != 'true'
+        env:
+          TAG: ${{ steps.names.outputs.tag }}
         run: |
           core_version=$(python -c "import importlib.metadata as m; print(m.version('terrascope'))")
-          tag="${{ steps.names.outputs.tag }}"
-          version="${core_version}-${tag#windows-}"
+          version="${core_version}-${TAG#windows-}"
           zip="terrascope-br_${version}_windows_x86_64.zip"
           mkdir -p release
           (cd dist && 7z a -tzip "../release/$zip" terrascope.exe > /dev/null)
+          # The manifest's file name is the Scoop app name: "terrascope-br", so it does
+          # not clash with the core's own "terrascope" app.
           python packaging/windows/make_scoop_manifest.py --version "$version" --zip "release/$zip" \
-            --url "https://github.com/${{ github.repository }}/releases/download/$tag/$zip" \
-            --output release/terrascope.json
+            --url "https://github.com/${{ github.repository }}/releases/download/$TAG/$zip" \
+            --output release/terrascope-br.json
           (cd release && sha256sum "$zip" > checksums.txt)
 
       - uses: actions/upload-artifact@v4
@@ -139,11 +173,22 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.build.outputs.tag }}
+          LATEST: ${{ needs.build.outputs.latest }}
+          REPO: ${{ github.repository }}
         run: |
-          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
-            gh release upload "$TAG" release/* --clobber --repo "${{ github.repository }}"
-          else
-            gh release create "$TAG" release/* --repo "${{ github.repository }}" \
-              --target "${{ github.sha }}" --latest --title "Windows build $TAG" \
-              --notes "terrascope.exe with this plugin, core ${TAG#windows-} (core commit, then plugin commit). Install: scoop install https://github.com/${{ github.repository }}/releases/latest/download/terrascope.json"
-          fi
+          # Every file in one call: the zip and its manifest appear together.
+          gh release create "$TAG" release/* --repo "$REPO" --target "${{ github.sha }}" \
+            --latest="$LATEST" --prerelease="$([ "$LATEST" = true ] && echo false || echo true)" \
+            --title "Windows build $TAG" \
+            --notes "terrascope.exe with this plugin; core and plugin commits in the name. Install the newest build of the core's main: scoop install https://github.com/$REPO/releases/latest/download/terrascope-br.json"
+
+      - name: Keep the newest builds only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh release list --repo "$REPO" --limit 200 --json tagName,createdAt \
+            --jq '[.[] | select(.tagName | startswith("windows-"))] | sort_by(.createdAt) | reverse | .[env.KEEP_RELEASES | tonumber:] | .[].tagName' |
+          while read -r old; do
+            gh release delete "$old" --repo "$REPO" --cleanup-tag --yes
+          done
