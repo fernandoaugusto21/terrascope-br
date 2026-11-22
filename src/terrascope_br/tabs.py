@@ -46,8 +46,9 @@ def brasil_tabs() -> list[dict]:
             # selected city (CPTEC/INPE when it gave the forecast).
             "attribution": attribution,
             "view": {"lat": -14, "lon": -52, "zoom": 3},
-            # Closer than the world map (64): at 256 one braille dot is about 260 m, the detail
-            # of the IBGE "maxima" outlines (see ibge.py).
-            "zoom_max": 256,
+            # The core's default limit for a tab, 16 times closer than the world map (64): at 1024 one
+            # braille dot is about 65 m, room for the streets of a city. The IBGE outlines stop
+            # gaining detail at 256 ("maxima", a vertex every 250 m; see ibge.py).
+            "zoom_max": 1024,
         }
     ]

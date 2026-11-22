@@ -134,10 +134,18 @@ def state_boxes() -> dict[str, tuple[float, float, float, float]]:
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
         return {}
 
+# The boxes come from the national "minima" file (a vertex every few km), which can
+# cut inside a state's real edge; a zoomed-in view (15 km high at zoom 1024) at a
+# coast, an island or a river border must still find its state.
+STATE_BOX_MARGIN = 0.1  # degrees, about 11 km
+
+
 def states_in_view(view: View) -> tuple[str, ...]:
-    """Codes of the states whose box overlaps the view, in code order."""
-    west, north = view.origin_lon, view.origin_lat
-    east, south = west + view.lon_span, north - view.lat_span
+    """Codes of the states whose box (widened by STATE_BOX_MARGIN) overlaps the
+    view, in code order."""
+    pad = STATE_BOX_MARGIN
+    west, north = view.origin_lon - pad, view.origin_lat + pad
+    east, south = view.origin_lon + view.lon_span + pad, view.origin_lat - view.lat_span - pad
     return tuple(sorted(
         code for code, (w, s, e, n) in state_boxes().items()
         if not (e < west or w > east or n < south or s > north)

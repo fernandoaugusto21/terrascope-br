@@ -182,14 +182,14 @@ Natural Earth cities at every zoom.
 The BRASIL tab sets `view: {lat: -14, lon: -52, zoom: 3}`, so the map opens over Brazil. The view is applied each time
 the tab is opened; see the plugin section of the Terrascope README.
 
-The tab also sets `zoom_max: 256`, four times closer than the world map (64): at 256 one braille dot is about 260 m.
-The IBGE outlines follow the zoom so that the detail matches the dots:
+The tab also sets `zoom_max: 1024`, the core's default limit for a tab and 16 times closer than the world map (64): at 1024 one
+braille dot is about 65 m. The IBGE outlines follow the zoom so that the detail matches the dots, up to 256:
 
 | Zoom | State and municipality outlines | 1 dot (108 x 58 cells) |
 |---|---|---|
 | up to 32 | national files, `minima` quality (municipalities from zoom 8) | 2.1 km and more |
 | 32 to 128 | one file per state in view, `intermediaria` (a vertex every 1.2 km in Greater São Paulo) | 2.1 km to 530 m |
-| 128 to 256 | one file per state in view, `maxima` (a vertex every 250 m) | 530 m to 260 m |
+| 128 to 1024 | one file per state in view, `maxima` (a vertex every 250 m, the finest IBGE file) | 530 m to 65 m |
 
 A zoomed-in view never asks for a national file: the national municipality mesh (3.6 MB) is downloaded and drawn
 only for the wide views. The per-state files are downloaded the first time a view shows that state at that level
