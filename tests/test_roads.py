@@ -247,7 +247,7 @@ def test_first_use_downloads_the_newest_file_and_then_works_offline(cache, netwo
     calls, _state = network
     layer = _switched_on()
     assert layer.refresh_if_due(force=False) is True
-    assert calls == ["https://api.github.com/repos/fernandoaugusto21/terrascope-br/releases?per_page=10",
+    assert calls == ["https://api.github.com/repos/fernandoaugusto21/terrascope-br/releases?per_page=100",
                      "https://dl/roads-1.npz"]
     assert store.path("viario", "br-viario.npz").exists()
     layer.reload()

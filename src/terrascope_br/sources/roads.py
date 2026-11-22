@@ -35,7 +35,9 @@ from terrascope_br.net import SourceError, get
 from terrascope_br.roads_format import RoadFile
 
 REPO = "fernandoaugusto21/terrascope-br"
-RELEASES_URL = f"https://api.github.com/repos/{REPO}/releases?per_page=10"
+# The Windows build keeps ten releases of its own and publishes more often than the weekly
+# road file, so ten per page could leave the newest roads-* release off the first page.
+RELEASES_URL = f"https://api.github.com/repos/{REPO}/releases?per_page=100"
 DOWNLOAD_TIMEOUT = 120.0
 CHECK_SECONDS = 7 * 24 * 3600        # a newer road file is looked for after a week
 STALE_SECONDS = 45 * 24 * 3600       # the legend says "no update since" past this age of the data
