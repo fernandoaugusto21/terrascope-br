@@ -88,6 +88,7 @@ class SourceLayer(Layer):
         self.error = ""                       # reason of the last failed fetch
         self.read_error = ""                  # reason the cache could not be read
         self.shown = True                     # the layer's own switch (see switch_action)
+        self._has_drawn = False                 # the last render drew something of the layer
 
     # -- what each source implements ------------------------------------------------
     def stamp_file(self):
@@ -188,8 +189,18 @@ class SourceLayer(Layer):
         if not self.shown:
             self.dirty = False
             self.last_markers = []
+            self._has_drawn = False
             return LayerRender(None, "#000000")
-        return super().render(view)
+        result = super().render(view)
+        self._has_drawn = bool(result.markers or result.bg_cells or result.lines or result.line_layers)
+        return result
+
+    def legend_visible(self) -> bool:
+        """The layer's legend lines are left out of the map's legend while it draws nothing in the view
+        (no fire, quake, warning, road, outline or rain cell). Kept when there is a message to give (a
+        failed fetch, no data yet, old data), and always while its own switch is off, so the line can
+        still be switched back on."""
+        return (not self.shown) or self.has_problem() or self._has_drawn
 
     # -- legend and info box ---------------------------------------------------------
     def legend_key(self) -> tuple[tuple[str, str, str], ...]:

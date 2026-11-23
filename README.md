@@ -100,8 +100,9 @@ city-temperature layer with its label placement. Changes made to the core's weat
   keeps its own copy of the newest RainViewer frame, so while both the WEATHER tab and this layer show rain, the
   newest frames are downloaded twice. Sharing the core's frame store would avoid it; that is a core change and is not
   made here.
-- **Rain colours** are the core's RainViewer levels, in dBZ. They are not the IAG-USP colours: the BR radar says
-  weak, moderate or strong, without a unit, and is drawn over the global rain wherever both cover the same cell.
+- **Rain colours** are the core's RainViewer levels, in dBZ. They are not the IAG-USP colours: the BR radar's key is
+  its own colour bar in dBZ (10, 20, 30, 40 and 50 and more), and it is drawn over the global rain wherever both cover
+  the same cell.
 - **Temperature** labels only the cities of Brazil from the Natural Earth places list. The colours are relative to
   the coldest and hottest city read so far, as on the WEATHER tab, not to a fixed scale.
 - Each layer has its own switch: the key (J, M) or the `on | off` choice in its legend line. The tab switches the

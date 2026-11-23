@@ -149,8 +149,9 @@ def test_rain_key_is_in_dbz_and_the_legend_says_so(brazil_outline):
     assert len(key_line.legend_items) == gw.KEY_STEPS
     assert all(label.endswith(" dBZ") for _glyph, _colour, label in key_line.legend_items)
     assert layer.legend_lines()[0].text.endswith("(RainViewer, dBZ)")
-    # the BR radar says weak / moderate / strong, not dBZ: the two legends differ
-    assert "dBZ" not in " ".join(line.text for line in chuva_online.RadarLayer().legend_lines())
+    # the BR radar's key is its own colour bar in dBZ too, from 10 dBZ: its swatches are not the RainViewer ones
+    radar_key = [label for _glyph, _colour, label in chuva_online.RadarLayer().legend_key()]
+    assert radar_key[0] == "10" and radar_key[-1] == "50+ dBZ"
 
 
 def test_rain_switch_by_key_and_by_legend_line(offline):

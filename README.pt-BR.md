@@ -104,7 +104,7 @@ chegam a esta aba.
   esta camada mostram chuva, os quadros mais recentes são baixados duas vezes. Compartilhar o armazenamento de quadros
   do core evitaria isso; essa é uma mudança no core e não é feita aqui.
 - **As cores da chuva** são os níveis do RainViewer do core, em dBZ. Não são as cores do IAG-USP: o radar BR diz fraca,
-  moderada ou forte, sem unidade, e é desenhado por cima da chuva global onde os dois cobrem a mesma célula.
+  de 10, 20, 30, 40 e 50 ou mais dBZ, e é desenhado por cima da chuva global onde os dois cobrem a mesma célula.
 - **A temperatura** rotula só as cidades do Brasil da lista de localidades do Natural Earth. As cores são relativas à
   cidade mais fria e à mais quente lidas até o momento, como na aba CLIMA, e não a uma escala fixa.
 - Cada camada tem a sua própria chave: a tecla (J, M) ou a escolha `on | off` (`ligado | desligado`) na sua linha da

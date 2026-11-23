@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: terrascope-br 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-23 00:58-0300\n"
+"POT-Creation-Date: 2026-11-23 01:12-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: pt_BR\n"
@@ -28,46 +28,46 @@ msgstr "conexão interrompida"
 msgid "connection refused"
 msgstr "conexão recusada"
 
-#: src/terrascope_br/base.py:153
+#: src/terrascope_br/base.py:154
 #: src/terrascope_br/sources/global_weather.py:238
 #, python-format
 msgid "unavailable: %s"
 msgstr "indisponível: %s"
 
-#: src/terrascope_br/base.py:155
+#: src/terrascope_br/base.py:156
 #, python-format
 msgid "cache unreadable: %s"
 msgstr "cache ilegível: %s"
 
-#: src/terrascope_br/base.py:156
+#: src/terrascope_br/base.py:157
 #: src/terrascope_br/sources/global_weather.py:238
 msgid "no data yet"
 msgstr "sem dados ainda"
 
-#: src/terrascope_br/base.py:158
+#: src/terrascope_br/base.py:159
 #: src/terrascope_br/sources/global_weather.py:240
 #, python-format
 msgid "update failed: %s"
 msgstr "falha na atualização: %s"
 
-#: src/terrascope_br/base.py:160
+#: src/terrascope_br/base.py:161
 #: src/terrascope_br/sources/global_weather.py:242
 #, python-format
 msgid "no update since %s"
 msgstr "sem atualização desde %s"
 
-#: src/terrascope_br/base.py:161
+#: src/terrascope_br/base.py:162
 #, python-format
 msgid "updated %s"
 msgstr "atualizado %s"
 
-#: src/terrascope_br/base.py:209
+#: src/terrascope_br/base.py:220
 #: src/terrascope_br/sources/global_weather.py:250
 #: src/terrascope_br/sources/global_weather.py:417
 msgid "on"
 msgstr "ligado"
 
-#: src/terrascope_br/base.py:209
+#: src/terrascope_br/base.py:220
 #: src/terrascope_br/sources/global_weather.py:250
 #: src/terrascope_br/sources/global_weather.py:417
 msgid "off"
@@ -278,32 +278,20 @@ msgstr "sem conexão"
 msgid "unavailable"
 msgstr "indisponível"
 
-#: src/terrascope_br/sources/chuva_online.py:252
+#: src/terrascope_br/sources/chuva_online.py:253
 msgid "Chuva Online radar, 36 km"
 msgstr "radar Chuva Online, 36 km"
 
-#: src/terrascope_br/sources/chuva_online.py:253
-#: src/terrascope_br/sources/chuva_online.py:392
-#: src/terrascope_br/sources/chuva_online.py:397
-#: src/terrascope_br/sources/chuva_online.py:399
+#: src/terrascope_br/sources/chuva_online.py:254
+#: src/terrascope_br/sources/chuva_online.py:393
+#: src/terrascope_br/sources/chuva_online.py:398
+#: src/terrascope_br/sources/chuva_online.py:400
 msgid "RADAR"
 msgstr "RADAR"
 
-#: src/terrascope_br/sources/chuva_online.py:395
+#: src/terrascope_br/sources/chuva_online.py:396
 msgid "LIVE"
 msgstr "AO VIVO"
-
-#: src/terrascope_br/sources/chuva_online.py:446
-msgid "weak"
-msgstr "fraca"
-
-#: src/terrascope_br/sources/chuva_online.py:447
-msgid "moderate"
-msgstr "moderada"
-
-#: src/terrascope_br/sources/chuva_online.py:448
-msgid "strong"
-msgstr "forte"
 
 #: src/terrascope_br/sources/global_weather.py:159
 msgid "RAIN"

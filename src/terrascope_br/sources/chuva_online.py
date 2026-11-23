@@ -63,6 +63,7 @@ DISC_RADIUS = 436.0
 MIN_SATURATION = 60
 STALE_SECONDS = 30 * 60
 SWITCH_ACTION = "br_radar.toggle"
+DBZ_KEY = (10, 20, 30, 40, 50)   # the swatches of the legend key (the last one stands for 50 dBZ and more)
 SHOWN_FILE = "radar.json"  # the on/off choice, in the config folder: {"shown": true|false}
 # The colour bar of the frames ("Z(dBZ)", right of the disc): 50 bands of 1 dBZ, from 10-11
 # (dark blue) up to 59-60 (pink), read from a frame of 2026-11-22 (column 995, rows 200-690).
@@ -442,8 +443,6 @@ class RadarLayer(SourceLayer):
         return radar_render(arrays[2], view)
 
     def legend_key(self):
-        return key(
-            ("#00a800", _("weak")),
-            ("#ffe00b", _("moderate")),
-            ("#e50000", _("strong")),
-        )
+        # The key is the frame's own colour bar in dBZ: band k (k-th colour of PALETTE) is 10 + k - 1 dBZ,
+        # so the swatch of 10 dBZ is PALETTE_HEX[0] and that of 50 dBZ PALETTE_HEX[40].
+        return key(*((PALETTE_HEX[dbz - 10], f"{dbz}+ dBZ" if dbz == DBZ_KEY[-1] else str(dbz)) for dbz in DBZ_KEY))
