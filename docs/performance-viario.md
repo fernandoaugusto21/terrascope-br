@@ -95,3 +95,29 @@ prepared classes stay in memory for the session: about 40 MB of the RSS above.
 
 Reproduce: `python packaging/roads/build_roads.py --source pbf --pbf sudeste-latest.osm.pbf --out br-viario-rmsp.npz`,
 then `python scripts/bench_viario.py --file br-viario-rmsp.npz` (needs psutil for the memory figures).
+
+## Zoom 2048 and 4096 (measured 2026-11-23)
+
+The BRASIL tab opens to zoom 4096 now, and the road file has two finer ranges (1024 to 2048 and 2048 to 4096,
+simplified at 16.6 m and 8.3 m: half a dot of the range's finest zoom on a 58-row map). The file published before
+that has the ranges up to 1024 only, so the layer draws its finest range (33 m) at 2048 and 4096.
+
+`scripts/bench_viario.py` on the published file (4.78 MiB, RMSP, built before the finer ranges), 7 views each, the
+layer's own fallback:
+
+| Zoom | Classes | Build, median | Build, slowest | Markers (cells) | Python heap peak |
+|---:|---|---:|---:|---:|---:|
+| 1024 | all | 10.76 ms | 39.93 ms | 6,058 | 4.09 MB |
+| 2048 | all (range 3, 33 m, from the file) | 7.87 ms | 29.70 ms | 5,585 | 2.20 MB |
+| 4096 | all (range 3, 33 m, from the file) | 6.47 ms | 28.31 ms | 4,143 | 2.20 MB |
+
+The fallback draws the same geometry at 2048 and 4096 as at 1024, so these rows show the cost of the layer's
+drawing, not of the finer geometry.
+
+The finer geometry is not measured on a real build: the Overpass API answered 502 and dropped the connection for a
+single small box on 2026-11-23, and no Geofabrik extract is on this machine. The size estimate instead re-simplifies a
+10 % sample of the published 33 m polylines at 16.6 m and 8.3 m and scales the new ranges by ten: about 1.0 million
+points in the two ranges and about 7.5 MiB, so the file would grow from 4.78 MiB to about 12 MiB (RMSP). That is a lower
+bound: the input is already simplified at 33 m, so a build from the extract keeps more points. Whether the build
+workflow must run after the merge, and the measured size of its asset, are recorded in the release notes once it has.
+
