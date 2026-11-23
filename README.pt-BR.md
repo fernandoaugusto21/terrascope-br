@@ -59,7 +59,7 @@ iniciado à mão (Actions, "Windows build", com uma branch, tag ou commit do cor
 | `br_municipios` | I | IBGE, contornos dos municípios | uma vez a cada 30 dias | a partir do zoom 8; arquivo nacional até o zoom 32, depois um arquivo por estado visível |
 | `br_fires` | F | INPE Queimadas | 10 min | focos das últimas 3 h |
 | `br_quakes` | B | catálogo do IAG-USP, ou USGS se o IAG-USP falhar | 30 min | últimos 30 dias, Brasil e vizinhos |
-| `br_radar` | T | IAG-USP Chuva Online, radar de 36 km | 10 min | oculta quando o quadro mais recente tem mais de 30 min |
+| `br_radar` | T, ou o `ligado \| desligado` da legenda | IAG-USP Chuva Online, radar de 36 km | 10 min | oculta quando o quadro mais recente tem mais de 30 min; desligado, não busca nada e não tem deslizador (a escolha fica guardada entre as execuções) |
 | `br_global_rain` | J | radar do RainViewer (o quadro e a paleta do core), dentro do contorno do Brasil | verificação a cada 5 min, um quadro novo a cada 10 min, aproximadamente | dBZ; desenhada abaixo de `br_radar`; nada é desenhado até o mapa de estados do IBGE estar no cache |
 | `br_global_temp` | M | temperaturas das cidades (a camada de cidades do core, com os provedores abaixo), só cidades do Brasil | 15 min por cidade | cores relativas, como na aba CLIMA; nesta aba os rótulos substituem os nomes de cidades do mapa base; a partir do zoom 32, um rótulo por município (veja abaixo) |
 | `br_inmet_alerts` | V | INMET, avisos meteorológicos ativos | 30 min | avisos de hoje e dos próximos dias, como áreas; oculta quando os dados têm mais de 1 h |
@@ -87,6 +87,10 @@ liga, e `frame_seconds` / `frame_hold_last_seconds` em `layers.weather.radar` no
 tempo. Com um core cujo deslizador tem botão de reprodução, o ▶ depois da legenda do deslizador (ou a tecla Espaço) toca
 a animação a partir do quadro mais antigo, e o ■ a pausa no quadro mostrado.
 O histórico começa com os dez quadros da primeira busca (cerca de 30 minutos) e cresce a cada busca.
+
+A linha do radar na legenda tem a chave `ligado | desligado` (a tecla T faz o mesmo). Desligado, o radar não desenha
+nada, não busca nada e não tem deslizador. A escolha fica guardada entre as execuções em `br/radar.json` na pasta de
+configuração do Terrascope (`terrascope --show-paths` mostra a pasta); arquivo ausente ou ilegível significa ligado.
 
 ### Chuva e temperatura globais
 

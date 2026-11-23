@@ -12,6 +12,10 @@ The slider steps through them as the core's radar slider does, and the loop
 follows the core's radar animation settings (layers.weather.radar.animate,
 frame_seconds, frame_hold_last_seconds).
 
+The legend line has the on/off switch (key T does the same). Off, the radar
+draws nothing, fetches nothing and shows no slider. The choice is kept in
+<Terrascope config folder>/br/radar.json between runs; a missing or unreadable file means on.
+
 Each file is requested with If-Modified-Since, so an unchanged file costs one
 304 answer. The time shown is the Last-Modified of the newest frame. If that
 frame is older than 30 minutes, the radar is hidden and the legend says when the
@@ -58,6 +62,8 @@ DISC_RADIUS = 436.0
 # Precipitation colours are saturated; grey and black are borders, text and the bar.
 MIN_SATURATION = 60
 STALE_SECONDS = 30 * 60
+SWITCH_ACTION = "br_radar.toggle"
+SHOWN_FILE = "radar.json"  # the on/off choice, in the config folder: {"shown": true|false}
 # The colour bar of the frames ("Z(dBZ)", right of the disc): 50 bands of 1 dBZ, from 10-11
 # (dark blue) up to 59-60 (pink), read from a frame of 2026-11-22 (column 995, rows 200-690).
 # Every precipitation colour inside the disc is one of them, so a pixel's colour gives its dBZ.
@@ -211,6 +217,21 @@ def cell_colours(rgb: np.ndarray, mask: np.ndarray, view: View) -> dict[tuple[in
 def _http_date(epoch: int) -> str:
     return formatdate(epoch, usegmt=True)
 
+def _saved_shown() -> bool:
+    """The on/off choice of the last run (on when there is none, or it cannot be read)."""
+    try:
+        saved = json.loads((store.read_bytes(store.settings_path(SHOWN_FILE)) or b"{}").decode("utf-8"))
+    except (ValueError, OSError):
+        return True
+    shown = saved.get("shown") if isinstance(saved, dict) else None
+    return shown if isinstance(shown, bool) else True
+
+def _save_shown(shown: bool) -> None:
+    try:
+        store.write_bytes(store.settings_path(SHOWN_FILE), json.dumps({"shown": shown}).encode("utf-8"))
+    except OSError:
+        pass  # the choice then lasts for this run only
+
 def _frame_file(epoch: int) -> Path:
     return store.path("chuva_online", f"frame_{epoch}.png")
 
@@ -227,6 +248,7 @@ def _loop_settings() -> tuple[bool, float, float]:
 class RadarLayer(SourceLayer):
     name = "br_radar"
     toggle_key = "t"
+    switch_action = SWITCH_ACTION
     source_name = _("Chuva Online radar, 36 km")
     info_title = _("RADAR")
     credit = "IAG-USP"
@@ -240,9 +262,17 @@ class RadarLayer(SourceLayer):
         self._last_step = 0.0
         self._pin: float | None = None  # frame time the slider holds (None = follow the loop or the newest)
         self._playing: bool | None = None  # play button; None = the core's radar animate setting
+        self.shown = _saved_shown()        # the legend switch (SourceLayer.shown), as last left
 
     def stamp_file(self):
         return store.path("chuva_online", "frames.json")
+
+    def is_due(self) -> bool:
+        return self.shown and super().is_due()
+
+    def _flip(self) -> None:
+        super()._flip()
+        _save_shown(self.shown)
 
     def _manifest(self) -> tuple[dict[int, int], list[int]]:
         """(slot -> Last-Modified of the file last seen there, frame times kept,
@@ -341,7 +371,7 @@ class RadarLayer(SourceLayer):
 
     def _advance(self, now: float) -> None:
         _loop, frame_seconds, hold_seconds = _loop_settings()
-        if not (self.enabled and self._is_playing()) or self._pin is not None or len(self.items) < 2:
+        if not (self.enabled and self.shown and self._is_playing()) or self._pin is not None or len(self.items) < 2:
             return  # static: the frame only moves with the slider
         newest = self._index >= len(self.items) - 1
         if now - self._last_step >= (hold_seconds if newest else frame_seconds):
@@ -354,7 +384,7 @@ class RadarLayer(SourceLayer):
         self._advance(time.time())
 
     def slider(self) -> SliderSpec | None:
-        if not self.enabled or not self.items or self.data_time is None:
+        if not self.enabled or not self.shown or not self.items or self.data_time is None:
             return None
         newest = len(self.items) - 1
         if len(self.items) < 2 or self.is_stale():

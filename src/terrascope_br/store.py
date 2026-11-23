@@ -1,6 +1,8 @@
 """Files in the app's cache directory for the BR layers. The age of an entry
 is its file modification time, so the same check works for JSON, CSV, text
-and PNG. Writes go through a temporary file so a crash never leaves half a file."""
+and PNG. Writes go through a temporary file so a crash never leaves half a file.
+The choices the user makes (an on/off switch kept between runs) are not cache:
+they go to settings_path(), in the Terrascope config folder."""
 
 from __future__ import annotations
 
@@ -16,6 +18,13 @@ def base_dir() -> Path:
 
 def path(*parts: str) -> Path:
     return base_dir().joinpath(*parts)
+
+def settings_path(*parts: str) -> Path:
+    """<Terrascope config folder>/br/<parts>, where the choices the user makes are kept (the INMET token
+    is there too), so that emptying the cache does not reset them. A core without a config folder keeps
+    them in the cache."""
+    folder = getattr(config, "USER_CONFIG_DIR", None)
+    return (Path(folder) / "br" if folder else base_dir()).joinpath(*parts)
 
 def age(file: Path) -> float | None:
     """Seconds since the file was written, or None when it does not exist."""

@@ -59,7 +59,7 @@ button to turn it on again). Pull requests build and check the executable withou
 | `br_municipios` | I | IBGE, municipality outlines | once per 30 days | from zoom 8 on; national file up to zoom 32, then one file per state in view |
 | `br_fires` | F | INPE Queimadas | 10 min | hotspots of the last 3 h |
 | `br_quakes` | B | IAG-USP catalogue, or USGS if IAG-USP fails | 30 min | last 30 days, Brazil and neighbours |
-| `br_radar` | T | IAG-USP Chuva Online, 36 km radar | 10 min | hidden when the newest frame is over 30 min old |
+| `br_radar` | T, or the legend's `on \| off` | IAG-USP Chuva Online, 36 km radar | 10 min | hidden when the newest frame is over 30 min old; off, it fetches nothing and has no slider (the choice is kept between runs) |
 | `br_global_rain` | J | RainViewer radar (the core's frame and palette), inside the Brazil outline | 5 min check, a new frame about every 10 min | dBZ; drawn under `br_radar`; nothing is drawn until the IBGE state map is in the cache |
 | `br_global_temp` | M | city temperatures (the core's city layer, with the providers below), cities of Brazil only | 15 min per city | relative colours, as on the WEATHER tab; labels replace the basemap city names in this tab; from zoom 32 on, one label per municipality (see below) |
 | `br_inmet_alerts` | V | INMET, active weather warnings | 30 min | warnings of today and the next days, as areas; hidden when the data is over 1 h old |
@@ -85,6 +85,10 @@ radar animation settings: `--radar-animate` turns it on, and `frame_seconds` / `
 `layers.weather.radar` in the config file set the timing. With a core whose slider has a play button, the ▶ after the
 slider's caption (or the space key) plays the loop from the oldest frame and ■ pauses it on the frame shown.
 The history starts with the ten frames of the first fetch (about 30 minutes) and grows with each fetch.
+
+The legend line has an `on | off` switch (key T does the same). Off, the radar draws nothing, fetches nothing
+and has no slider. The choice is kept between runs in `br/radar.json` in the Terrascope config folder (`terrascope
+--show-paths` shows it); a missing or unreadable file means on.
 
 ### Global rain and temperature
 
