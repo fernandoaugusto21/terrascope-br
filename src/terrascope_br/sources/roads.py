@@ -257,7 +257,7 @@ class RoadsLayer(SourceLayer):
         # about 90 columns, and a row of three is up to 48 (pt_BR); both would cover the map's
         # credits line at the left and the scale bar.
         lines = super().legend_lines()
-        if not self.shown or self.has_problem():
+        if not self.key_in_legend():
             return lines
         items = self.legend_key()
         rows = [SidebarLine(text="", legend_items=items[start:start + LEGEND_ROW])

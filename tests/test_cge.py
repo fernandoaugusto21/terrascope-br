@@ -122,7 +122,7 @@ def test_regions_in_a_state_are_coloured_and_marked_the_rest_only_outlined(layer
 def test_a_quiet_day_has_outlines_and_no_colour(layer):
     _write({})
     layer.reload()
-    render = layer.build(CITY)
+    render = layer.render(CITY)
     assert render.lines and not render.markers and not render.bg_cells
     assert len(layer.legend_lines()) == 2 and layer.legend_lines()[1].legend_items
 

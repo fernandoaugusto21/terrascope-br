@@ -198,9 +198,15 @@ class SourceLayer(Layer):
     def legend_visible(self) -> bool:
         """The layer's legend lines are left out of the map's legend while it draws nothing in the view
         (no fire, quake, warning, road, outline or rain cell). Kept when there is a message to give (a
-        failed fetch, no data yet, old data), and always while its own switch is off, so the line can
-        still be switched back on."""
-        return (not self.shown) or self.has_problem() or self._has_drawn
+        failed fetch, no data yet, old data). A layer with its own switch is always listed, on or off:
+        its title line carries the switch, and only its colour key is left out while nothing of it is
+        in view (see key_in_legend), so it can be switched off (or back on) from anywhere."""
+        return bool(self.switch_action) or self.has_problem() or self._has_drawn
+
+    def key_in_legend(self) -> bool:
+        """Whether the legend shows the layer's colour key below its title: while it is on, has no
+        message to give instead, and drew something in the view."""
+        return self.shown and not self.has_problem() and self._has_drawn
 
     # -- legend and info box ---------------------------------------------------------
     def legend_key(self) -> tuple[tuple[str, str, str], ...]:
@@ -225,6 +231,8 @@ class SourceLayer(Layer):
                 return lines
         if self.has_problem():
             lines.append(SidebarLine(text=self.freshness_text()))
+        elif self.switch_action and not self.key_in_legend():
+            return lines  # nothing in view: the title and its switch only
         elif self.legend_key():
             lines.append(SidebarLine(text="", legend_items=self.legend_key()))
         return lines

@@ -498,6 +498,7 @@ def test_legend_rows_fit_a_narrow_width(cache, tmp_path, language):
         layer = roads.RoadsLayer()
         layer.shown = True
         layer.data_time = time.time()
+        layer._has_drawn = True         # as after a frame with roads in view
         lines = layer.legend_lines()
         assert len(lines) == 4          # title, then three rows of two classes
         # The title line is the last line of the block when the sidebar is full (the core then stacks it

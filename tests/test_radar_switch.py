@@ -45,6 +45,7 @@ def test_the_legend_line_is_the_switch_and_the_key_is_t(folders):
     title = layer.legend_lines()[0]
     assert title.action == radar.SWITCH_ACTION == "br_radar.toggle"
     assert title.choices and title.choice_index == 0       # on
+    layer._has_drawn = True                                 # as after a frame with rain in view
     assert len(layer.legend_lines()) == 2                   # the title, then the colour key
 
 
