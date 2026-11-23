@@ -130,7 +130,9 @@ ficam de fora. A API informa os horários de início e fim sem fuso horário; el
 ### Viário (OpenStreetMap)
 
 A camada `br_viario` desenha as vias da Região Metropolitana de São Paulo, do OpenStreetMap (© OpenStreetMap
-contributors, ODbL 1.0). Ela fica desligada quando a aba abre: o seu interruptor está na primeira linha da legenda. Só as
+contributors, ODbL 1.0). Cada faixa de zoom tem a sua simplificação, meio ponto no zoom mais fino da faixa (cerca de
+33 m de 512 a 1024, 17 m de 1024 a 2048, 8 m de 2048 a 4096); um arquivo gerado antes das faixas mais finas continua
+sendo desenhado, na faixa mais fina que ele tem nos zooms maiores. Ela fica desligada quando a aba abre: o seu interruptor está na primeira linha da legenda. Só as
 vias da vista são desenhadas, uma cor por classe. Com um core que tem `LayerRender.line_layers`, as vias ficam abaixo dos
 contornos do IBGE (um core mais antigo as desenha por cima, como marcadores).
 
@@ -262,15 +264,16 @@ camada; até ficarem prontos, as cidades do Natural Earth permanecem. Isso reque
 A aba BRASIL define `view: {lat: -14, lon: -52, zoom: 3}`, então o mapa abre sobre o Brasil. A vista é aplicada toda
 vez que a aba é aberta; veja a seção sobre plugins do README do Terrascope.
 
-A aba também define `zoom_max: 1024`, o limite padrão do core para uma aba e 16 vezes mais perto que o mapa-múndi
-(64): em 1024, um ponto braille corresponde a cerca de 65 m. Os contornos do IBGE acompanham o zoom para que o
-detalhe corresponda aos pontos, até 256:
+A aba também define `zoom_max: 4096`, o limite do core para uma aba (`TAB_ZOOM_MAX_LIMIT`): 64 vezes mais perto que
+o mapa-múndi. Neste mapa (58 linhas de células), um ponto braille tem cerca de 66 m no zoom 1024, 33 m no 2048 e 17 m
+no 4096 (em um mapa de 45 linhas: 86, 43 e 21 m). Os contornos do IBGE acompanham o zoom para que o detalhe
+corresponda aos pontos, até 256, e ficam no arquivo mais fino além disso:
 
 | Zoom | Contornos de estados e municípios | 1 ponto (108 x 58 células) |
 |---|---|---|
 | até 32 | arquivos nacionais, qualidade `minima` (municípios a partir do zoom 8) | 2,1 km ou mais |
 | de 32 a 128 | um arquivo por estado visível, `intermediaria` (um vértice a cada 1,2 km na Grande São Paulo) | de 2,1 km a 530 m |
-| de 128 a 1024 | um arquivo por estado visível, `maxima` (um vértice a cada 250 m, o arquivo mais fino do IBGE) | de 530 m a 65 m |
+| de 128 a 4096 | um arquivo por estado visível, `maxima` (um vértice a cada 250 m, o arquivo mais fino do IBGE) | de 530 m a 17 m |
 
 Uma vista aproximada nunca pede um arquivo nacional: a malha nacional de municípios (3,6 MB) é baixada e desenhada só
 nas vistas amplas. Os arquivos por estado são baixados na primeira vez em que uma vista mostra aquele estado naquele

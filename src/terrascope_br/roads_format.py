@@ -14,6 +14,10 @@ A zoom range k runs from LOD_ZOOMS[k] up to LOD_ZOOMS[k + 1] (the last one ends 
 LOD_ZOOMS[-1]). Each class is simplified (Douglas-Peucker) for the finest braille dot
 of its range, so a range's geometry is never coarser than a dot there.
 
+Files built before the finer ranges (zoom 1024 to 4096) have the ranges that end at or
+below COARSE_END only. Those still read: at the finer zooms the layer draws the finest
+range the file has (stored_range), which is a dot or two coarser there.
+
 Pure numpy: no import of the Terrascope core, so the generator can run without it.
 """
 
@@ -37,7 +41,9 @@ DOT_ROWS = 58 * 4                        # braille dot rows of the BRASIL tab (5
 METRES_PER_DEGREE_LAT = 111_200.0
 
 # Zoom where each range starts; the last value is the end of the last range.
-LOD_ZOOMS = (16.0, 64.0, 256.0, 512.0, 1024.0)
+LOD_ZOOMS = (16.0, 64.0, 256.0, 512.0, 1024.0, 2048.0, 4096.0)
+# The ranges that end at or below this zoom are in every file (see the header).
+COARSE_END = 1024.0
 
 # Road classes, top first: the first class is drawn over the later ones where two share a
 # braille cell. (name, OpenStreetMap highway values, first zoom where it is drawn)
@@ -152,6 +158,15 @@ class RoadFile:
         xy_key, off_key = array_names(name, index)
         return xy_key in self._archive.files and off_key in self._archive.files
 
+    def stored_range(self, name: str, index: int) -> int | None:
+        """The range to draw a class from at range `index`: the same one when the file has it,
+        else the finest one below it (a file built before the finer ranges). None when the file
+        has the class in no range up to it."""
+        for candidate in range(index, -1, -1):
+            if self.has(name, candidate):
+                return candidate
+        return None
+
     def polylines(self, name: str, index: int) -> Polylines:
         key = (name, index)
         if key not in self._cache:
@@ -178,13 +193,16 @@ def _read_meta(archive) -> dict:
 
 def check(source) -> dict:
     """Open and validate a file, every array included. Returns its meta; raises ValueError
-    (or OSError for a file that is not an archive) when the file is not usable."""
+    (or OSError for a file that is not an archive) when the file is not usable. The finer
+    ranges (above COARSE_END) are optional: a file built before them is still valid."""
     road_file = RoadFile(source)
     try:
         for name, _tags, _min_zoom in CLASSES:
             for index in ranges_of_class(name):
                 if not road_file.has(name, index):
-                    raise ValueError(f"no {name} in zoom range {index}")
+                    if LOD_ZOOMS[index + 1] <= COARSE_END:
+                        raise ValueError(f"no {name} in zoom range {index}")
+                    continue
                 road_file.polylines(name, index)
         return road_file.meta
     except (KeyError, EOFError) as error:

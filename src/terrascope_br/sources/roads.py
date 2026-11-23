@@ -210,7 +210,10 @@ class RoadsLayer(SourceLayer):
         if self._road is None or not names or index is None:
             return [], chosen, owner
         for rank, name in enumerate(names):   # top class first
-            values = self._rasterize(view, name, index)
+            stored = self._road.stored_range(name, index)   # an older file: its finest range below
+            if stored is None:
+                continue
+            values = self._rasterize(view, name, stored)
             free = (values > 0) & (owner < 0)
             chosen[free] = values[free]
             owner[free] = rank

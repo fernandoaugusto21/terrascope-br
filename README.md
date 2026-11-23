@@ -127,7 +127,9 @@ area are left out. The API gives the start and end times without a time zone; th
 ### Road network (OpenStreetMap)
 
 The `br_viario` layer draws the roads of the Região Metropolitana de São Paulo, from OpenStreetMap (© OpenStreetMap
-contributors, ODbL 1.0). It is off when the tab opens: its own switch is on the legend's first line. Only the roads in
+contributors, ODbL 1.0). Each zoom range has its own simplification, a half dot at the range's finest zoom (about 33 m
+from 512 to 1024, 17 m from 1024 to 2048, 8 m from 2048 to 4096); a file built before the finer ranges is still drawn,
+from its finest range at the finer zooms. It is off when the tab opens: its own switch is on the legend's first line. Only the roads in
 view are drawn, one colour per class. With a core that has `LayerRender.line_layers`, the roads are drawn under the
 IBGE outlines (an older core draws them above, as markers).
 
@@ -259,14 +261,16 @@ Natural Earth cities at every zoom.
 The BRASIL tab sets `view: {lat: -14, lon: -52, zoom: 3}`, so the map opens over Brazil. The view is applied each time
 the tab is opened; see the plugin section of the Terrascope README.
 
-The tab also sets `zoom_max: 1024`, the core's default limit for a tab and 16 times closer than the world map (64): at 1024 one
-braille dot is about 65 m. The IBGE outlines follow the zoom so that the detail matches the dots, up to 256:
+The tab also sets `zoom_max: 4096`, the core's limit for a tab (`TAB_ZOOM_MAX_LIMIT`): 64 times closer than the world map.
+On this map (58 cell rows) one braille dot is about 66 m at zoom 1024, 33 m at 2048 and 17 m at 4096 (on a 45-row
+map: 86, 43 and 21 m). The IBGE outlines follow the zoom so that the detail matches the dots, up to 256, and stay at
+their finest file beyond:
 
 | Zoom | State and municipality outlines | 1 dot (108 x 58 cells) |
 |---|---|---|
 | up to 32 | national files, `minima` quality (municipalities from zoom 8) | 2.1 km and more |
 | 32 to 128 | one file per state in view, `intermediaria` (a vertex every 1.2 km in Greater São Paulo) | 2.1 km to 530 m |
-| 128 to 1024 | one file per state in view, `maxima` (a vertex every 250 m, the finest IBGE file) | 530 m to 65 m |
+| 128 to 4096 | one file per state in view, `maxima` (a vertex every 250 m, the finest IBGE file) | 530 m to 17 m |
 
 A zoomed-in view never asks for a national file: the national municipality mesh (3.6 MB) is downloaded and drawn
 only for the wide views. The per-state files are downloaded the first time a view shows that state at that level
