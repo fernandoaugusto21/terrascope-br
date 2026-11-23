@@ -162,7 +162,7 @@ By region, the layer also shows:
 - **Flood points of the day** (`alagamentos.jsp`, read every 5 minutes with the states): the CGE lists them by region,
   with no position, so a region with active points gets `≈<number>` after its name (a mark alone below zoom 128), red
   when one of them is impassable, yellow when they are passable. The info box lists the points of the day, active first
-  (time, street, passable or not). Flood points over 1 h old are not shown. If only the flood list fails, the states
+  (time, street, passable or not), three at most, then `+K more`. Flood points over 1 h old are not shown. If only the flood list fails, the states
   keep updating.
 - **In the info box of a region:** its zone; the reading of the CGE station of that region (temperature, rain since
   the station's daily reset, wind), when it has one (27 of the 32 regions; `estacoes-meteorologicas.jsp` maps station

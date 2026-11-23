@@ -59,7 +59,7 @@ from terrascope.core.layer import CLICK_RADIUS, LayerRender, Marker, SidebarLine
 from terrascope.core.view import View
 
 from terrascope_br import store
-from terrascope_br._i18n import N_, _
+from terrascope_br._i18n import N_, _, ngettext
 from terrascope_br.base import SourceLayer, key
 from terrascope_br.geo import Ring, draw_outlines, view_key
 from terrascope_br.net import SourceError, get
@@ -285,7 +285,58 @@ PASSABLE_COLOR = "#ffd60a"
 IMPASSABLE_COLOR = "#ff3b30"
 LABEL_COLOR = "#c9d1d9"
 LABEL_MIN_ZOOM = 128.0              # the city is about 50 cells wide: room for the names
-FLOOD_ROWS = 3                      # flood points listed in the info box
+FLOOD_ROWS = 3                      # flood points listed in the info box, then "+K more"
+NBSP = "\u00a0"                    # a number stays with its unit, and a count with its word
+# The CGE writes streets and districts in capitals; title case keeps these particles lower case.
+PARTICLES = frozenset({"da", "de", "do", "das", "dos", "e"})
+STREET_PREFIXES = (("RUA ", "R. "), ("R ", "R. "), ("AV ", "Av. "))
+_WORD = re.compile(r"[^\W\d_]+")
+
+
+def _capitalised(match) -> str:
+    word = match.group(0)
+    return word[:1].upper() + word[1:].lower()
+
+
+def title_case(text: str, first_is_capital: bool = True) -> str:
+    """"JOSE DE ALENCAR (BRAS)" -> "Jose de Alencar (Bras)": each word capitalised, the particles
+    (da, de, do, das, dos, e) in lower case. The first word is a capital unless first_is_capital is
+    False (the rest of a street after its "R." or "Av.")."""
+    words = []
+    for index, word in enumerate(text.split()):
+        if word.lower() in PARTICLES and (index > 0 or not first_is_capital):
+            words.append(word.lower())
+        else:
+            words.append(_WORD.sub(_capitalised, word))
+    return " ".join(words)
+
+
+def street_name(text: str) -> str:
+    """A flood point's street or district as the info box shows it: title case, with "R " or "RUA "
+    as "R." and "AV " as "Av."."""
+    raw = " ".join(text.split())
+    for prefix, short in STREET_PREFIXES:
+        if raw.upper().startswith(prefix):
+            return short + title_case(raw[len(prefix):], first_is_capital=False)
+    return title_case(raw)
+
+
+def clock(time_text: str) -> str:
+    """The start time of a flood point: "20:21 a" (still open) and "20:21–20:50" both give "20:21"."""
+    found = re.search(r"\d{1,2}:\d{2}", time_text)
+    return found.group(0) if found else time_text
+
+
+def flood_counts(active: int, today: int) -> str:
+    """"1 active · 1 today": each count stays with its word, so a line break falls between the counts."""
+    return f"{active}{NBSP}{ngettext('active', 'active', active)} · {today}{NBSP}{_('today')}"
+
+
+def flood_point_text(point: dict) -> str:
+    """One flood point on one line: "20:21 R. Jose de Alencar (Bras) · impassable"."""
+    mark = _("passable") if point["passable"] else _("impassable")
+    text = f"{clock(point['time'])} {street_name(point['street'])} · {mark}"
+    return text if point["active"] else f"{text} {_('(over)')}"
 
 
 def region_code(name: str) -> str | None:
@@ -379,25 +430,48 @@ def _label_point(rings: list) -> tuple[float, float]:
 
 
 def _number_text(value: float | None, unit: str) -> str:
-    """12.5 -> "12,5 °C" in Portuguese (the core's regional format when it has one)."""
+    """12.5, "°C" -> "12,5 °C" in Portuguese (the core's regional format when it has one). The unit
+    follows with a no-break space, so a line break never falls between a number and its unit."""
     if value is None:
         return ""
     try:
         from terrascope.core.i18n import format_number
     except ImportError:
-        return f"{value:.1f}{unit}"
-    return format_number(value, 1) + unit
+        return f"{value:.1f}{NBSP}{unit}"
+    return format_number(value, 1) + NBSP + unit
 
 
-def region_details(code: str, now: datetime | None = None) -> tuple[str, str]:
-    """(station text, forecast text) of a region: the reading of its CGE station
-    (temperature, rain since the station's last reset, wind), and the CGE forecast
-    of today and tomorrow, which is the same for every region. A part that cannot
-    be read says why in a few words."""
+def forecast_day_text(day: dict) -> str:
+    """"Pancadas isoladas · 22–32 °C": the summary of the day, then its range."""
+    parts = [day.get("summary") or "—"]
+    low, high = day.get("tmin"), day.get("tmax")
+    if low is not None and high is not None:
+        parts.append(f"{low:.0f}–{high:.0f}{NBSP}°C")
+    return " · ".join(parts)
+
+
+def forecast_rows(forecast: list[dict], now: datetime) -> list[tuple[str, str]]:
+    """One row per day of the CGE forecast, today and tomorrow, then a footnote that it is for the whole
+    city (the CGE gives no forecast by region). Empty when neither day is in the forecast."""
+    by_date = {day.get("date"): day for day in forecast}
+    rows = []
+    for label, date in ((_("TODAY"), now.date()), (_("TOMORROW"), now.date() + timedelta(days=1))):
+        day = by_date.get(date.isoformat())
+        if day is not None:
+            rows.append((label, forecast_day_text(day)))
+    if rows:
+        rows.append(("", _("(whole city)")))
+    return rows
+
+
+def region_details(code: str, now: datetime | None = None) -> tuple[str, list[tuple[str, str]]]:
+    """(station text, forecast rows) of a region: the reading of its CGE station (temperature, rain since
+    the station's last reset, wind), and the CGE forecast of today and tomorrow, which is the same for
+    every region (see forecast_rows). A part that cannot be read says why in a few words."""
     try:
         from terrascope_br.sources import weather_providers as wp
     except ImportError:
-        return _("needs a newer Terrascope"), _("needs a newer Terrascope")
+        return _("needs a newer Terrascope"), [(_("FORECAST"), _("needs a newer Terrascope"))]
     now = now or datetime.now(wp.SAO_PAULO_TIME)
     forecast: list[dict] = []
     try:
@@ -411,26 +485,16 @@ def region_details(code: str, now: datetime | None = None) -> tuple[str, str]:
             page = wp._page(STATION_URL.format(post=post), STATION_SECONDS)
             reading = wp.parse_cge_station(page, forecast, now)
             rain = wp._number(wp._station_value(page, "Per. Atual"))
-            parts = [_number_text(reading["temperature"], " °C")]
+            parts = [_number_text(reading["temperature"], "°C")]
             if rain is not None:
-                parts.append(_("rain %s") % _number_text(rain, " mm"))
+                parts.append(_("rain %s") % _number_text(rain, "mm"))
             if reading.get("windspeed") is not None:
-                parts.append(_("wind %s") % _number_text(reading["windspeed"], " km/h"))
+                parts.append(_("wind %s") % _number_text(reading["windspeed"], "km/h"))
             station = " · ".join(part for part in parts if part)
     except (wp.WeatherFetchError, ValueError):
         station = _("station unavailable")
-    by_date = {day.get("date"): day for day in forecast}
-    texts = []
-    for name, date in ((_("today"), now.date()), (_("tomorrow"), now.date() + timedelta(days=1))):
-        day = by_date.get(date.isoformat())
-        if day is None:
-            continue
-        low, high = day.get("tmin"), day.get("tmax")
-        span = f" {low:.0f}–{high:.0f} °C" if low is not None and high is not None else ""
-        texts.append(f"{name}: {day.get('summary') or '—'}{span}")
-    forecast_text = "; ".join(texts) + " " + _("(whole city: the CGE gives no forecast by region)") if texts \
-        else _("forecast unavailable")
-    return station, forecast_text
+    rows = forecast_rows(forecast, now)
+    return station, rows or [(_("FORECAST"), _("forecast unavailable"))]
 
 
 def _modified(headers: dict) -> float:
@@ -697,7 +761,7 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
         rows.extend(self._flood_rows(region))
         details = self._region_details(region["code"])
         rows.append((_("STATION"), details.get("station") or _("loading…")))
-        rows.append((_("FORECAST"), details.get("forecast") or _("loading…")))
+        rows.extend(details.get("forecast") or [(_("FORECAST"), _("loading…"))])
         rows.append((_("UPDATED"), updated))
         rows.append((_("SOURCE"), "CGE"))
         return rows
@@ -709,14 +773,14 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
         active, today, _colour = flood_summary(points)
         if not today:
             return [(_("FLOODS"), _("none today"))]
-        rows = [(_("FLOODS"), _("%(active)d active · %(today)d today") % {"active": active, "today": today})]
+        rows = [(_("FLOODS"), flood_counts(active, today))]
         # Active points first, then the latest of the day (times are "HH:MM–HH:MM").
         ordered = sorted(points, key=lambda point: point["time"], reverse=True)
         ordered.sort(key=lambda point: not point["active"])
         for point in ordered[:FLOOD_ROWS]:
-            mark = _("impassable") if not point["passable"] else _("passable")
-            when = point["time"] + ("" if point["active"] else " " + _("(over)"))
-            rows.append(("", f"{when} {point['street']} ({mark})"))
+            rows.append(("", flood_point_text(point)))
+        if len(ordered) > FLOOD_ROWS:
+            rows.append(("", f"+{len(ordered) - FLOOD_ROWS}{NBSP}{_('more')}"))
         return rows
 
     # -- station and forecast of a selected region (background) -------------------------
@@ -731,7 +795,7 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
                 threading.Thread(target=self._load_details, args=(code,), name="terrascope-br-cge-region",
                                  daemon=True).start()
         if details is None and not config.FETCH_NEW_DATA_FROM_API:
-            return {"station": _("offline"), "forecast": _("offline")}
+            return {"station": _("offline"), "forecast": [(_("FORECAST"), _("offline"))]}
         return details or {}
 
     def _load_details(self, code: str) -> None:
@@ -740,7 +804,8 @@ class CgeAlertsLayer(inmet.InmetAlertsLayer):
                 station, forecast = region_details(code)
             except Exception as error:   # noqa: BLE001 - a broken page must not ask again each frame
                 print(f"CGE region {code}: {error!r}", file=sys.stderr)
-                station = forecast = _("unavailable")
+                station = _("unavailable")
+                forecast = [(_("FORECAST"), _("unavailable"))]
             with self._details_lock:
                 self._details[code] = {"station": station, "forecast": forecast, "time": time.time()}
         finally:

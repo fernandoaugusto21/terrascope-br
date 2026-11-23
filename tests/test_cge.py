@@ -379,14 +379,15 @@ def test_a_click_on_a_name_selects_the_region(layer):
 def test_the_info_box_lists_the_floods_of_the_region(layer, monkeypatch):
     _write_floods()
     layer.reload()
-    monkeypatch.setattr(layer, "_region_details", lambda code: {"station": "S", "forecast": "F"})
+    monkeypatch.setattr(layer, "_region_details",
+                        lambda code: {"station": "S", "forecast": [(cge._("FORECAST"), "F")]})
     region = next(region for region in layer.regions if region["code"] == "MG")
     layer.selected = region
     rows = layer.info_rows()
     values = [value for _name, value in rows]
     assert ("ZONE" in [name for name, _value in rows] or cge._("ZONE") in [name for name, _value in rows])
-    assert any("AV MORVAN DIAS DE FIGUEIREDO" in value for value in values)
-    assert "S" in values and "F" in values
+    assert any("Av. Morvan Dias de Figueiredo" in value for value in values)
+    assert "S" in values and (cge._("FORECAST"), "F") in rows
 
 
 def test_region_details_read_the_station_and_the_city_forecast(monkeypatch):
@@ -400,8 +401,9 @@ def test_region_details_read_the_station_and_the_city_forecast(monkeypatch):
     forecast_day = wp.parse_cge_forecast(FORECAST_PAGE)[0]["date"]
     now = datetime.fromisoformat(forecast_day + "T10:00").replace(tzinfo=wp.SAO_PAULO_TIME)
     station, forecast = cge.region_details("SE", now)
-    assert "°C" in station
-    assert forecast.endswith(cge._("(whole city: the CGE gives no forecast by region)"))
+    assert "\u00a0°C" in station                          # the unit stays with its number
+    assert [name for name, _value in forecast][:2] == [cge._("TODAY"), cge._("TOMORROW")]
+    assert forecast[-1] == ("", cge._("(whole city)"))
     assert cge.region_details("CV", now)[0] == cge._("no CGE station in this region")
 
 
@@ -453,7 +455,9 @@ def test_active_points_first_then_the_latest():
     layer = cge.CgeAlertsLayer()
     layer.floods_time = time.time()
     rows = layer._flood_rows({"floods": points})
-    assert [value.split(" ")[0] for _name, value in rows[1:]] == ["09:00–", "19:00–19:30", "18:00–18:30"]
+    # Three points are listed, the rest as "+3 more".
+    assert [value.split(" ")[0] for _name, value in rows[1:4]] == ["09:00", "19:00", "18:00"]
+    assert rows[4] == ("", f"+3\u00a0{cge._('more')}")
 
 
 def test_today_and_tomorrow_are_matched_by_date(monkeypatch):
@@ -466,7 +470,7 @@ def test_today_and_tomorrow_are_matched_by_date(monkeypatch):
     first = datetime.fromisoformat(wp.parse_cge_forecast(FORECAST_PAGE)[0]["date"] + "T21:00")
     evening_before = (first - timedelta(days=1)).replace(tzinfo=wp.SAO_PAULO_TIME)
     _station, forecast = cge.region_details("CV", evening_before)   # the forecast starts tomorrow
-    assert not forecast.startswith(cge._("today")) and forecast.startswith(cge._("tomorrow"))
+    assert [name for name, _value in forecast] == [cge._("TOMORROW"), ""]
 
 
 def test_names_keep_clear_of_the_state_markers(layer):

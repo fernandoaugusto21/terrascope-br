@@ -164,7 +164,7 @@ Por região, a camada também mostra:
 - **Os pontos de alagamento do dia** (`alagamentos.jsp`, lido a cada 5 minutos junto com os estados): o CGE os lista
   por região, sem posição, então uma região com pontos ativos ganha `≈<número>` depois do nome (só a marca, abaixo do
   zoom 128), em vermelho quando um deles está intransitável e em amarelo quando estão transitáveis. A caixa de
-  informações lista os pontos do dia, os ativos primeiro (horário, rua, transitável ou não). Pontos de alagamento com
+  informações lista os pontos do dia, os ativos primeiro (horário, rua, transitável ou não), no máximo três, e depois `+K mais`. Pontos de alagamento com
   mais de 1 h não são mostrados. Se só a lista de alagamentos falhar, os estados continuam sendo atualizados.
 - **Na caixa de informações de uma região:** a sua zona; a leitura da estação do CGE daquela região (temperatura,
   chuva desde a zeragem diária da estação, vento), quando ela tem uma (27 das 32 regiões; o
