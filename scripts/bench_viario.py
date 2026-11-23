@@ -41,6 +41,26 @@ COLS, ROWS = 108, 58           # the BRASIL tab's map area at 1 cell = 2 x 4 dot
 MB = 2**20
 
 
+class _Cell:
+    """One drawn braille cell: what the bench counts (its colour)."""
+
+    __slots__ = ("color",)
+
+    def __init__(self, color: str) -> None:
+        self.color = color
+
+
+def _markers_for(layer, view):
+    """The cells the layer draws for a view, as the core gets them: its markers, and one cell per
+    non-blank braille character of its line layers (a core with LayerRender.line_layers)."""
+    render = layer._render_for(view)
+    cells = list(render.markers)
+    for lines, colour in render.line_layers or ():
+        for row in lines:
+            cells += [_Cell(colour) for char in row if char != "⠀"]
+    return cells
+
+
 def rss_bytes() -> int | None:
     """Resident memory of this process, in bytes (psutil, a development tool: not a plugin dependency)."""
     try:
@@ -80,7 +100,9 @@ def main(argv: list[str] | None = None) -> int:
         started = time.perf_counter()
         for name, _tags, _zoom in roads_format.CLASSES:
             for index in roads_format.ranges_of_class(name):
-                layer._prepare(name, index)
+                stored = layer._road.stored_range(name, index)   # a file built before the finer ranges
+                if stored is not None:
+                    layer._prepare(name, stored)
         report["prepare_all_seconds"] = round(time.perf_counter() - started, 3)
         gc.collect()
         report["rss_after_open_mb"] = round((rss_bytes() or 0) / MB, 1)
@@ -95,14 +117,14 @@ def main(argv: list[str] | None = None) -> int:
                 lat = SAO_PAULO[1] + 0.005 * step - 0.015
                 gc.collect()
                 started = time.perf_counter()
-                markers = layer._markers_for(view_at(zoom, lon, lat))
+                markers = _markers_for(layer, view_at(zoom, lon, lat))
                 times.append(time.perf_counter() - started)
                 counts.append(len(markers))
                 if step == 0:
                     for marker in markers:
                         per_class[marker.color] = per_class.get(marker.color, 0) + 1
             tracemalloc.start()
-            layer._markers_for(view_at(zoom, SAO_PAULO[0], SAO_PAULO[1]))
+            _markers_for(layer, view_at(zoom, SAO_PAULO[0], SAO_PAULO[1]))
             _current, peak = tracemalloc.get_traced_memory()
             tracemalloc.stop()
             report["zooms"][str(zoom)] = {

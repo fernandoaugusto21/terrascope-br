@@ -59,7 +59,7 @@ iniciado à mão (Actions, "Windows build", com uma branch, tag ou commit do cor
 | `br_municipios` | I | IBGE, contornos dos municípios | uma vez a cada 30 dias | a partir do zoom 8; arquivo nacional até o zoom 32, depois um arquivo por estado visível |
 | `br_fires` | F | INPE Queimadas | 10 min | focos das últimas 3 h |
 | `br_quakes` | B | catálogo do IAG-USP, ou USGS se o IAG-USP falhar | 30 min | últimos 30 dias, Brasil e vizinhos |
-| `br_radar` | T | IAG-USP Chuva Online, radar de 36 km | 10 min | oculta quando o quadro mais recente tem mais de 30 min |
+| `br_radar` | T, ou o `ligado \| desligado` da legenda | IAG-USP Chuva Online, radar de 36 km | 10 min | oculta quando o quadro mais recente tem mais de 30 min; desligado, não busca nada e não tem deslizador (a escolha fica guardada entre as execuções) |
 | `br_global_rain` | J | radar do RainViewer (o quadro e a paleta do core), dentro do contorno do Brasil | verificação a cada 5 min, um quadro novo a cada 10 min, aproximadamente | dBZ; desenhada abaixo de `br_radar`; nada é desenhado até o mapa de estados do IBGE estar no cache |
 | `br_global_temp` | M | temperaturas das cidades (a camada de cidades do core, com os provedores abaixo), só cidades do Brasil | 15 min por cidade | cores relativas, como na aba CLIMA; nesta aba os rótulos substituem os nomes de cidades do mapa base; a partir do zoom 32, um rótulo por município (veja abaixo) |
 | `br_inmet_alerts` | V | INMET, avisos meteorológicos ativos | 30 min | avisos de hoje e dos próximos dias, como áreas; oculta quando os dados têm mais de 1 h |
@@ -88,6 +88,10 @@ tempo. Com um core cujo deslizador tem botão de reprodução, o ▶ depois da l
 a animação a partir do quadro mais antigo, e o ■ a pausa no quadro mostrado.
 O histórico começa com os dez quadros da primeira busca (cerca de 30 minutos) e cresce a cada busca.
 
+A linha do radar na legenda tem a chave `ligado | desligado` (a tecla T faz o mesmo). Desligado, o radar não desenha
+nada, não busca nada e não tem deslizador. A escolha fica guardada entre as execuções em `br/radar.json` na pasta de
+configuração do Terrascope (`terrascope --show-paths` mostra a pasta); arquivo ausente ou ilegível significa ligado.
+
 ### Chuva e temperatura globais
 
 Estas duas camadas reaproveitam o código do core (`terrascope.layers.weather`): a busca e a paleta do RainViewer, e a
@@ -100,7 +104,7 @@ chegam a esta aba.
   esta camada mostram chuva, os quadros mais recentes são baixados duas vezes. Compartilhar o armazenamento de quadros
   do core evitaria isso; essa é uma mudança no core e não é feita aqui.
 - **As cores da chuva** são os níveis do RainViewer do core, em dBZ. Não são as cores do IAG-USP: o radar BR diz fraca,
-  moderada ou forte, sem unidade, e é desenhado por cima da chuva global onde os dois cobrem a mesma célula.
+  de 10, 20, 30, 40 e 50 ou mais dBZ, e é desenhado por cima da chuva global onde os dois cobrem a mesma célula.
 - **A temperatura** rotula só as cidades do Brasil da lista de localidades do Natural Earth. As cores são relativas à
   cidade mais fria e à mais quente lidas até o momento, como na aba CLIMA, e não a uma escala fixa.
 - Cada camada tem a sua própria chave: a tecla (J, M) ou a escolha `on | off` (`ligado | desligado`) na sua linha da
@@ -126,7 +130,9 @@ ficam de fora. A API informa os horários de início e fim sem fuso horário; el
 ### Viário (OpenStreetMap)
 
 A camada `br_viario` desenha as vias da Região Metropolitana de São Paulo, do OpenStreetMap (© OpenStreetMap
-contributors, ODbL 1.0). Ela fica desligada quando a aba abre: o seu interruptor está na primeira linha da legenda. Só as
+contributors, ODbL 1.0). Cada faixa de zoom tem a sua simplificação, meio ponto no zoom mais fino da faixa (cerca de
+33 m de 512 a 1024, 17 m de 1024 a 2048, 8 m de 2048 a 4096); um arquivo gerado antes das faixas mais finas continua
+sendo desenhado, na faixa mais fina que ele tem nos zooms maiores. Ela fica desligada quando a aba abre: o seu interruptor está na primeira linha da legenda. Só as
 vias da vista são desenhadas, uma cor por classe. Com um core que tem `LayerRender.line_layers`, as vias ficam abaixo dos
 contornos do IBGE (um core mais antigo as desenha por cima, como marcadores).
 
@@ -160,7 +166,7 @@ Por região, a camada também mostra:
 - **Os pontos de alagamento do dia** (`alagamentos.jsp`, lido a cada 5 minutos junto com os estados): o CGE os lista
   por região, sem posição, então uma região com pontos ativos ganha `≈<número>` depois do nome (só a marca, abaixo do
   zoom 128), em vermelho quando um deles está intransitável e em amarelo quando estão transitáveis. A caixa de
-  informações lista os pontos do dia, os ativos primeiro (horário, rua, transitável ou não). Pontos de alagamento com
+  informações lista os pontos do dia, os ativos primeiro (horário, rua, transitável ou não), no máximo três, e depois `+K mais`. Pontos de alagamento com
   mais de 1 h não são mostrados. Se só a lista de alagamentos falhar, os estados continuam sendo atualizados.
 - **Na caixa de informações de uma região:** a sua zona; a leitura da estação do CGE daquela região (temperatura,
   chuva desde a zeragem diária da estação, vento), quando ela tem uma (27 das 32 regiões; o
@@ -258,15 +264,16 @@ camada; até ficarem prontos, as cidades do Natural Earth permanecem. Isso reque
 A aba BRASIL define `view: {lat: -14, lon: -52, zoom: 3}`, então o mapa abre sobre o Brasil. A vista é aplicada toda
 vez que a aba é aberta; veja a seção sobre plugins do README do Terrascope.
 
-A aba também define `zoom_max: 1024`, o limite padrão do core para uma aba e 16 vezes mais perto que o mapa-múndi
-(64): em 1024, um ponto braille corresponde a cerca de 65 m. Os contornos do IBGE acompanham o zoom para que o
-detalhe corresponda aos pontos, até 256:
+A aba também define `zoom_max: 4096`, o limite do core para uma aba (`TAB_ZOOM_MAX_LIMIT`): 64 vezes mais perto que
+o mapa-múndi. Neste mapa (58 linhas de células), um ponto braille tem cerca de 66 m no zoom 1024, 33 m no 2048 e 17 m
+no 4096 (em um mapa de 45 linhas: 86, 43 e 21 m). Os contornos do IBGE acompanham o zoom para que o detalhe
+corresponda aos pontos, até 256, e ficam no arquivo mais fino além disso:
 
 | Zoom | Contornos de estados e municípios | 1 ponto (108 x 58 células) |
 |---|---|---|
 | até 32 | arquivos nacionais, qualidade `minima` (municípios a partir do zoom 8) | 2,1 km ou mais |
 | de 32 a 128 | um arquivo por estado visível, `intermediaria` (um vértice a cada 1,2 km na Grande São Paulo) | de 2,1 km a 530 m |
-| de 128 a 1024 | um arquivo por estado visível, `maxima` (um vértice a cada 250 m, o arquivo mais fino do IBGE) | de 530 m a 65 m |
+| de 128 a 4096 | um arquivo por estado visível, `maxima` (um vértice a cada 250 m, o arquivo mais fino do IBGE) | de 530 m a 17 m |
 
 Uma vista aproximada nunca pede um arquivo nacional: a malha nacional de municípios (3,6 MB) é baixada e desenhada só
 nas vistas amplas. Os arquivos por estado são baixados na primeira vez em que uma vista mostra aquele estado naquele

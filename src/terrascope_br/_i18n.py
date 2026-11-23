@@ -33,6 +33,13 @@ def _(message: str) -> str:
     return _catalog(_core_i18n.language()).gettext(message)
 
 
+def ngettext(singular: str, plural: str, n: int) -> str:
+    """The form of a text for the count n (singular for 1), from this package's catalogue."""
+    if _core_i18n is None:
+        return singular if n == 1 else plural
+    return _catalog(_core_i18n.language()).ngettext(singular, plural, n)
+
+
 def N_(message: str) -> str:
     """Mark a text for translation where it is defined; translate it with _() where it is shown."""
     return message

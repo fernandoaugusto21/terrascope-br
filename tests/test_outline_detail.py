@@ -196,10 +196,11 @@ def test_municipality_legend_keeps_the_national_file_age_when_zoomed_out(cache):
     assert layer.items == [] and layer.data_time is not None
 
 
-def test_the_brasil_tab_zooms_in_to_1024_and_the_core_accepts_it():
+def test_the_brasil_tab_zooms_in_to_4096_and_the_core_accepts_it():
     tab = tabs.brasil_tabs()[0]
-    assert tab["zoom_max"] == 1024
-    assert config.parse_tab_zoom_max(tab["zoom_max"]) == 1024
+    assert tab["zoom_max"] == 4096
+    assert config.parse_tab_zoom_max(tab["zoom_max"]) == 4096
+    assert tab["zoom_max"] <= config.TAB_ZOOM_MAX_LIMIT
 
 
 def test_a_view_at_a_state_edge_finds_the_state_past_its_simplified_box(monkeypatch):

@@ -53,12 +53,15 @@ def _polylines(lines):
     return fmt.Polylines(xy, offsets)
 
 
-def _file_bytes(lines_by_class, tmp_path, built=None):
+def _file_bytes(lines_by_class, tmp_path, built=None, coarse_only=False):
     """A road file in memory: lines_by_class maps a class name to its lon/lat polylines,
-    which are written in every zoom range the class is drawn in."""
+    which are written in every zoom range the class is drawn in (coarse_only: only the
+    ranges of a file built before the finer ones)."""
     polylines = {}
     for name, _tags, _zoom in fmt.CLASSES:
         for index in fmt.ranges_of_class(name):
+            if coarse_only and fmt.LOD_ZOOMS[index + 1] > fmt.COARSE_END:
+                continue
             polylines[(name, index)] = _polylines(lines_by_class.get(name, []))
     target = tmp_path / "road-test.npz"
     meta = {"built": "2026-11-22T00:00:00Z", "built_epoch": int(built or time.time()), "stats": {}}
@@ -119,23 +122,51 @@ def test_classes_by_zoom(zoom, names):
 
 
 @pytest.mark.parametrize("zoom, index", [
-    (15.9, None), (16, 0), (63.9, 0), (64, 1), (255, 1), (256, 2), (511, 2), (512, 3), (1024, 3), (1025, None),
+    (15.9, None), (16, 0), (63.9, 0), (64, 1), (255, 1), (256, 2), (511, 2), (512, 3), (1023.9, 3),
+    (1024, 4), (2047, 4), (2048, 5), (4096, 5), (4097, None),
 ])
 def test_zoom_ranges(zoom, index):
     assert fmt.range_index(zoom) == index
 
 
 def test_each_class_is_stored_for_its_own_zoom_ranges_only():
-    assert fmt.ranges_of_class("motorway") == (0, 1, 2, 3)
-    assert fmt.ranges_of_class("primary") == (1, 2, 3)
-    assert fmt.ranges_of_class("tertiary") == (2, 3)
-    assert fmt.ranges_of_class("residential") == (3,)
+    assert fmt.ranges_of_class("motorway") == (0, 1, 2, 3, 4, 5)
+    assert fmt.ranges_of_class("primary") == (1, 2, 3, 4, 5)
+    assert fmt.ranges_of_class("tertiary") == (2, 3, 4, 5)
+    assert fmt.ranges_of_class("residential") == (3, 4, 5)
 
 
 def test_tolerance_is_half_a_dot_at_the_finest_zoom_of_the_range():
-    # One dot at zoom 1024 is about 66 m (the BRASIL tab's view); half of it is the tolerance.
+    # One dot at zoom 1024 is about 66 m on the BRASIL tab's map (58 cell rows); half of it is the tolerance,
+    # and each doubling of the zoom halves it: about 17 m at 2048 and 8 m at 4096.
     assert 30 < fmt.range_tolerance_metres(3) < 36
+    assert 15 < fmt.range_tolerance_metres(4) < 18
+    assert 7.5 < fmt.range_tolerance_metres(5) < 9
     assert fmt.range_tolerance_metres(0) > fmt.range_tolerance_metres(3) * 10
+    assert fmt.range_tolerance_metres(5) < 10   # the finest range is finer than 10 m
+
+
+def test_a_file_built_before_the_finer_ranges_still_reads_and_falls_back(tmp_path):
+    data = _file_bytes({"motorway": [_line([(-46.7, -23.5), (-46.6, -23.5)])],
+                        "residential": [_line([(-46.7, -23.6), (-46.6, -23.6)])]}, tmp_path, coarse_only=True)
+    assert fmt.check(data)["format"] == fmt.FORMAT          # valid: the coarse ranges are all there
+    road = fmt.RoadFile(data)
+    assert not road.has("motorway", 4) and not road.has("motorway", 5)
+    assert road.stored_range("motorway", 5) == 3            # the finest range the file has below 5
+    assert road.stored_range("residential", 4) == 3
+    assert road.stored_range("motorway", 2) == 2            # a range it has stays itself
+
+
+def test_a_file_without_a_coarse_range_is_rejected(tmp_path):
+    data = _file_bytes({"motorway": [_line([(-46.7, -23.5), (-46.6, -23.5)])]}, tmp_path)
+    road = fmt.RoadFile(data)
+    assert road.has("motorway", 4) and road.stored_range("motorway", 4) == 4
+    polylines = {(name, index): _polylines([]) for name, _tags, _zoom in fmt.CLASSES
+                 for index in fmt.ranges_of_class(name) if index != 2}
+    target = tmp_path / "gap.npz"
+    fmt.write(target, polylines, {})
+    with pytest.raises(ValueError, match="zoom range 2"):
+        fmt.check(target.read_bytes())
 
 
 # -- the generator's pure parts ------------------------------------------------------------
@@ -319,9 +350,9 @@ def test_failed_download_is_said_in_the_legend(cache, monkeypatch):
 
 # -- what the layer draws ----------------------------------------------------------------
 
-def _layer_with(tmp_path, cache, lines_by_class, built=None):
+def _layer_with(tmp_path, cache, lines_by_class, built=None, coarse_only=False):
     store.write_bytes(store.path("viario", "br-viario.npz"),
-                      _file_bytes(lines_by_class, tmp_path, built=built))
+                      _file_bytes(lines_by_class, tmp_path, built=built, coarse_only=coarse_only))
     layer = _switched_on()
     layer.reload()
     return layer
@@ -382,6 +413,23 @@ def test_only_the_roads_in_view_are_drawn(cache, tmp_path):
     layer = _layer_with(tmp_path, cache, {"motorway": [near, far]})
     rendered = _cells(layer.render(_view(512)))
     assert rendered and all(0 <= cell[0] < 108 and 0 <= cell[1] < 58 for cell in rendered)
+
+
+def test_the_finer_zooms_draw_the_roads_of_their_own_ranges(cache, tmp_path):
+    lines = {"motorway": [_line([(-46.70, -23.55), (-46.55, -23.55)])]}
+    layer = _layer_with(tmp_path, cache, lines)
+    for zoom in (1024, 2048, 4096):
+        assert roads.COLOURS["motorway"] in _colours(_cells(layer.render(_view(zoom)))), zoom
+
+
+def test_a_file_built_before_the_finer_ranges_draws_at_them_from_its_finest_range(cache, tmp_path):
+    lines = {"motorway": [_line([(-46.70, -23.55), (-46.55, -23.55)])],
+             "residential": [_line([(-46.70, -23.56), (-46.55, -23.56)])]}
+    layer = _layer_with(tmp_path, cache, lines, coarse_only=True)
+    assert layer._road is not None
+    at_4096 = _cells(layer.render(_view(4096)))
+    assert _colours(at_4096) == {roads.COLOURS["motorway"], roads.COLOURS["residential"]}
+    assert _colours(_cells(layer.render(_view(1024)))) == _colours(at_4096)
 
 
 def test_a_cell_shows_one_class_colour(cache, tmp_path):

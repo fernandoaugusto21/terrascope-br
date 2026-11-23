@@ -59,7 +59,7 @@ button to turn it on again). Pull requests build and check the executable withou
 | `br_municipios` | I | IBGE, municipality outlines | once per 30 days | from zoom 8 on; national file up to zoom 32, then one file per state in view |
 | `br_fires` | F | INPE Queimadas | 10 min | hotspots of the last 3 h |
 | `br_quakes` | B | IAG-USP catalogue, or USGS if IAG-USP fails | 30 min | last 30 days, Brazil and neighbours |
-| `br_radar` | T | IAG-USP Chuva Online, 36 km radar | 10 min | hidden when the newest frame is over 30 min old |
+| `br_radar` | T, or the legend's `on \| off` | IAG-USP Chuva Online, 36 km radar | 10 min | hidden when the newest frame is over 30 min old; off, it fetches nothing and has no slider (the choice is kept between runs) |
 | `br_global_rain` | J | RainViewer radar (the core's frame and palette), inside the Brazil outline | 5 min check, a new frame about every 10 min | dBZ; drawn under `br_radar`; nothing is drawn until the IBGE state map is in the cache |
 | `br_global_temp` | M | city temperatures (the core's city layer, with the providers below), cities of Brazil only | 15 min per city | relative colours, as on the WEATHER tab; labels replace the basemap city names in this tab; from zoom 32 on, one label per municipality (see below) |
 | `br_inmet_alerts` | V | INMET, active weather warnings | 30 min | warnings of today and the next days, as areas; hidden when the data is over 1 h old |
@@ -86,6 +86,10 @@ radar animation settings: `--radar-animate` turns it on, and `frame_seconds` / `
 slider's caption (or the space key) plays the loop from the oldest frame and ■ pauses it on the frame shown.
 The history starts with the ten frames of the first fetch (about 30 minutes) and grows with each fetch.
 
+The legend line has an `on | off` switch (key T does the same). Off, the radar draws nothing, fetches nothing
+and has no slider. The choice is kept between runs in `br/radar.json` in the Terrascope config folder (`terrascope
+--show-paths` shows it); a missing or unreadable file means on.
+
 ### Global rain and temperature
 
 These two layers reuse the core's code (`terrascope.layers.weather`): the RainViewer fetch and palette, and the
@@ -96,8 +100,9 @@ city-temperature layer with its label placement. Changes made to the core's weat
   keeps its own copy of the newest RainViewer frame, so while both the WEATHER tab and this layer show rain, the
   newest frames are downloaded twice. Sharing the core's frame store would avoid it; that is a core change and is not
   made here.
-- **Rain colours** are the core's RainViewer levels, in dBZ. They are not the IAG-USP colours: the BR radar says
-  weak, moderate or strong, without a unit, and is drawn over the global rain wherever both cover the same cell.
+- **Rain colours** are the core's RainViewer levels, in dBZ. They are not the IAG-USP colours: the BR radar's key is
+  its own colour bar in dBZ (10, 20, 30, 40 and 50 and more), and it is drawn over the global rain wherever both cover
+  the same cell.
 - **Temperature** labels only the cities of Brazil from the Natural Earth places list. The colours are relative to
   the coldest and hottest city read so far, as on the WEATHER tab, not to a fixed scale.
 - Each layer has its own switch: the key (J, M) or the `on | off` choice in its legend line. The tab switches the
@@ -123,7 +128,9 @@ area are left out. The API gives the start and end times without a time zone; th
 ### Road network (OpenStreetMap)
 
 The `br_viario` layer draws the roads of the Região Metropolitana de São Paulo, from OpenStreetMap (© OpenStreetMap
-contributors, ODbL 1.0). It is off when the tab opens: its own switch is on the legend's first line. Only the roads in
+contributors, ODbL 1.0). Each zoom range has its own simplification, a half dot at the range's finest zoom (about 33 m
+from 512 to 1024, 17 m from 1024 to 2048, 8 m from 2048 to 4096); a file built before the finer ranges is still drawn,
+from its finest range at the finer zooms. It is off when the tab opens: its own switch is on the legend's first line. Only the roads in
 view are drawn, one colour per class. With a core that has `LayerRender.line_layers`, the roads are drawn under the
 IBGE outlines (an older core draws them above, as markers).
 
@@ -158,7 +165,7 @@ By region, the layer also shows:
 - **Flood points of the day** (`alagamentos.jsp`, read every 5 minutes with the states): the CGE lists them by region,
   with no position, so a region with active points gets `≈<number>` after its name (a mark alone below zoom 128), red
   when one of them is impassable, yellow when they are passable. The info box lists the points of the day, active first
-  (time, street, passable or not). Flood points over 1 h old are not shown. If only the flood list fails, the states
+  (time, street, passable or not), three at most, then `+K more`. Flood points over 1 h old are not shown. If only the flood list fails, the states
   keep updating.
 - **In the info box of a region:** its zone; the reading of the CGE station of that region (temperature, rain since
   the station's daily reset, wind), when it has one (27 of the 32 regions; `estacoes-meteorologicas.jsp` maps station
@@ -255,14 +262,16 @@ Natural Earth cities at every zoom.
 The BRASIL tab sets `view: {lat: -14, lon: -52, zoom: 3}`, so the map opens over Brazil. The view is applied each time
 the tab is opened; see the plugin section of the Terrascope README.
 
-The tab also sets `zoom_max: 1024`, the core's default limit for a tab and 16 times closer than the world map (64): at 1024 one
-braille dot is about 65 m. The IBGE outlines follow the zoom so that the detail matches the dots, up to 256:
+The tab also sets `zoom_max: 4096`, the core's limit for a tab (`TAB_ZOOM_MAX_LIMIT`): 64 times closer than the world map.
+On this map (58 cell rows) one braille dot is about 66 m at zoom 1024, 33 m at 2048 and 17 m at 4096 (on a 45-row
+map: 86, 43 and 21 m). The IBGE outlines follow the zoom so that the detail matches the dots, up to 256, and stay at
+their finest file beyond:
 
 | Zoom | State and municipality outlines | 1 dot (108 x 58 cells) |
 |---|---|---|
 | up to 32 | national files, `minima` quality (municipalities from zoom 8) | 2.1 km and more |
 | 32 to 128 | one file per state in view, `intermediaria` (a vertex every 1.2 km in Greater São Paulo) | 2.1 km to 530 m |
-| 128 to 1024 | one file per state in view, `maxima` (a vertex every 250 m, the finest IBGE file) | 530 m to 65 m |
+| 128 to 4096 | one file per state in view, `maxima` (a vertex every 250 m, the finest IBGE file) | 530 m to 17 m |
 
 A zoomed-in view never asks for a national file: the national municipality mesh (3.6 MB) is downloaded and drawn
 only for the wide views. The per-state files are downloaded the first time a view shows that state at that level
