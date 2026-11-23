@@ -1,5 +1,5 @@
 """The BR layers leave their legend lines out while they draw nothing in the view (legend_visible), keep
-them for a message or for a switch that is off, and the radar's legend is a dBZ key of its colour bar."""
+them for a message, keep the title line of a layer with its own switch (its colour key leaves), and the radar's legend is a dBZ key of its colour bar."""
 
 import json
 import time
@@ -59,7 +59,7 @@ def test_a_switched_off_layer_keeps_its_line_to_switch_it_back(folders):
     assert layer.legend_visible() is True
 
 
-def test_the_roads_are_listed_only_while_a_road_is_in_view(folders):
+def test_the_roads_keep_their_switch_and_show_their_classes_only_while_a_road_is_in_view(folders):
     layer = roads.RoadsLayer()
     layer.enabled = True
     layer.shown = True
@@ -67,8 +67,13 @@ def test_the_roads_are_listed_only_while_a_road_is_in_view(folders):
     layer.reload()
     layer.render(SAO_PAULO_VIEW)
     assert layer.legend_visible() is True
+    assert len(layer.legend_lines()) > 1                  # title with its switch, then the classes
     layer.render(FAR_VIEW)
-    assert layer.legend_visible() is False
+    # Nothing in view: the title stays with its switch (it can be switched off from here), the
+    # classes leave the legend.
+    assert layer.legend_visible() is True
+    [title] = layer.legend_lines()
+    assert title.action == roads.RoadsLayer.switch_action and title.choice_index == 0
 
 
 def _road_file(tmp_path):
@@ -103,13 +108,16 @@ def _radar(folders, frame, epoch):
     return layer
 
 
-def test_the_radar_is_listed_only_while_its_frame_has_rain_in_view(folders):
+def test_the_radar_keeps_its_switch_and_shows_its_key_only_while_its_frame_has_rain_in_view(folders):
     rainy = _radar(folders, RAIN, int(time.time()) - 60)
     rainy.render(SAO_PAULO_VIEW)
     assert rainy.legend_visible() is True
     dry = _radar(folders, _blank_png(), int(time.time()) - 120)
+    assert len(rainy.legend_lines()) > 1                  # title with its switch, then the dBZ key
     dry.render(SAO_PAULO_VIEW)
-    assert dry.legend_visible() is False
+    assert dry.legend_visible() is True                   # the switch stays reachable
+    [title] = dry.legend_lines()
+    assert title.action == radar.RadarLayer.switch_action
 
 
 def _blank_png() -> bytes:
