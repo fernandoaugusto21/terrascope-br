@@ -328,8 +328,11 @@ def clock(time_text: str) -> str:
 
 
 def flood_counts(active: int, today: int) -> str:
-    """"1 active · 1 today": each count stays with its word, so a line break falls between the counts."""
-    return f"{active}{NBSP}{ngettext('active', 'active', active)} · {today}{NBSP}{_('today')}"
+    """"1 active · 1 today", or "none active · 4 today" with no active point: each count stays with
+    its word, so a line break falls between the counts."""
+    first = (f"{active}{NBSP}{ngettext('active', 'active', active)}" if active
+             else _("none active"))
+    return f"{first} · {today}{NBSP}{_('today')}"
 
 
 def flood_point_text(point: dict) -> str:

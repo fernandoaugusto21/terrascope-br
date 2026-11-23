@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: terrascope-br 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-23 00:21-0300\n"
+"POT-Creation-Date: 2026-11-23 00:58-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: pt_BR\n"
@@ -125,93 +125,97 @@ msgstr "Zona Sul"
 msgid "East zone"
 msgstr "Zona Leste"
 
-#: src/terrascope_br/sources/cge.py:332
+#: src/terrascope_br/sources/cge.py:333
 msgid "active"
 msgid_plural "active"
 msgstr[0] "ativo"
 msgstr[1] "ativos"
 
-#: src/terrascope_br/sources/cge.py:332
+#: src/terrascope_br/sources/cge.py:334
+msgid "none active"
+msgstr "nenhum ativo"
+
+#: src/terrascope_br/sources/cge.py:335
 msgid "today"
 msgstr "hoje"
 
-#: src/terrascope_br/sources/cge.py:337
+#: src/terrascope_br/sources/cge.py:340
 msgid "passable"
 msgstr "transitável"
 
-#: src/terrascope_br/sources/cge.py:337
+#: src/terrascope_br/sources/cge.py:340
 msgid "impassable"
 msgstr "intransitável"
 
-#: src/terrascope_br/sources/cge.py:339
+#: src/terrascope_br/sources/cge.py:342
 msgid "(over)"
 msgstr "(encerrado)"
 
-#: src/terrascope_br/sources/cge.py:458
+#: src/terrascope_br/sources/cge.py:461
 msgid "TODAY"
 msgstr "HOJE"
 
-#: src/terrascope_br/sources/cge.py:458
+#: src/terrascope_br/sources/cge.py:461
 msgid "TOMORROW"
 msgstr "AMANHÃ"
 
-#: src/terrascope_br/sources/cge.py:463
+#: src/terrascope_br/sources/cge.py:466
 msgid "(whole city)"
 msgstr "(toda a cidade)"
 
-#: src/terrascope_br/sources/cge.py:474
+#: src/terrascope_br/sources/cge.py:477
 msgid "needs a newer Terrascope"
 msgstr "requer um Terrascope mais novo"
 
-#: src/terrascope_br/sources/cge.py:474 src/terrascope_br/sources/cge.py:497
-#: src/terrascope_br/sources/cge.py:764 src/terrascope_br/sources/cge.py:798
-#: src/terrascope_br/sources/cge.py:808
+#: src/terrascope_br/sources/cge.py:477 src/terrascope_br/sources/cge.py:500
+#: src/terrascope_br/sources/cge.py:767 src/terrascope_br/sources/cge.py:801
+#: src/terrascope_br/sources/cge.py:811
 msgid "FORECAST"
 msgstr "PREVISÃO"
 
-#: src/terrascope_br/sources/cge.py:481
+#: src/terrascope_br/sources/cge.py:484
 msgid "no CGE station in this region"
 msgstr "sem estação do CGE nesta região"
 
-#: src/terrascope_br/sources/cge.py:490
+#: src/terrascope_br/sources/cge.py:493
 #, python-format
 msgid "rain %s"
 msgstr "chuva %s"
 
-#: src/terrascope_br/sources/cge.py:492
+#: src/terrascope_br/sources/cge.py:495
 #, python-format
 msgid "wind %s"
 msgstr "vento %s"
 
-#: src/terrascope_br/sources/cge.py:495
+#: src/terrascope_br/sources/cge.py:498
 msgid "station unavailable"
 msgstr "estação indisponível"
 
-#: src/terrascope_br/sources/cge.py:497
+#: src/terrascope_br/sources/cge.py:500
 msgid "forecast unavailable"
 msgstr "previsão indisponível"
 
-#: src/terrascope_br/sources/cge.py:518
+#: src/terrascope_br/sources/cge.py:521
 msgid "CGE flood risk, São Paulo city"
 msgstr "alagamentos do CGE, cidade de São Paulo"
 
-#: src/terrascope_br/sources/cge.py:519
+#: src/terrascope_br/sources/cge.py:522
 msgid "CGE REGION"
 msgstr "REGIÃO DO CGE"
 
-#: src/terrascope_br/sources/cge.py:737
+#: src/terrascope_br/sources/cge.py:740
 msgid "GeoSampa (CC BY-SA 4.0), City of São Paulo"
 msgstr "GeoSampa (CC BY-SA 4.0), Prefeitura de São Paulo"
 
-#: src/terrascope_br/sources/cge.py:746
+#: src/terrascope_br/sources/cge.py:749
 msgid "≈ flood, passable"
 msgstr "≈ alagamento, transitável"
 
-#: src/terrascope_br/sources/cge.py:746
+#: src/terrascope_br/sources/cge.py:749
 msgid "≈ flood, impassable"
 msgstr "≈ alagamento, intransitável"
 
-#: src/terrascope_br/sources/cge.py:756 src/terrascope_br/sources/cge.py:771
+#: src/terrascope_br/sources/cge.py:759 src/terrascope_br/sources/cge.py:774
 #: src/terrascope_br/sources/iag.py:216 src/terrascope_br/sources/iag.py:217
 #: src/terrascope_br/sources/inmet.py:328
 #: src/terrascope_br/sources/inmet.py:330
@@ -219,58 +223,58 @@ msgstr "≈ alagamento, intransitável"
 msgid "N/A"
 msgstr "n/d"
 
-#: src/terrascope_br/sources/cge.py:757
+#: src/terrascope_br/sources/cge.py:760
 msgid "REGION"
 msgstr "REGIÃO"
 
-#: src/terrascope_br/sources/cge.py:759
+#: src/terrascope_br/sources/cge.py:762
 msgid "ZONE"
 msgstr "ZONA"
 
-#: src/terrascope_br/sources/cge.py:760 src/terrascope_br/sources/ibge.py:308
+#: src/terrascope_br/sources/cge.py:763 src/terrascope_br/sources/ibge.py:308
 msgid "STATE"
 msgstr "ESTADO"
 
-#: src/terrascope_br/sources/cge.py:760
+#: src/terrascope_br/sources/cge.py:763
 msgid "state"
 msgstr "estado"
 
-#: src/terrascope_br/sources/cge.py:763
+#: src/terrascope_br/sources/cge.py:766
 #: src/terrascope_br/sources/spaguas.py:148
 msgid "STATION"
 msgstr "ESTAÇÃO"
 
-#: src/terrascope_br/sources/cge.py:763 src/terrascope_br/sources/cge.py:764
+#: src/terrascope_br/sources/cge.py:766 src/terrascope_br/sources/cge.py:767
 msgid "loading…"
 msgstr "carregando…"
 
-#: src/terrascope_br/sources/cge.py:765
+#: src/terrascope_br/sources/cge.py:768
 #: src/terrascope_br/sources/spaguas.py:152
 msgid "UPDATED"
 msgstr "ATUALIZADO"
 
-#: src/terrascope_br/sources/cge.py:766 src/terrascope_br/sources/iag.py:219
+#: src/terrascope_br/sources/cge.py:769 src/terrascope_br/sources/iag.py:219
 msgid "SOURCE"
 msgstr "FONTE"
 
-#: src/terrascope_br/sources/cge.py:771 src/terrascope_br/sources/cge.py:775
-#: src/terrascope_br/sources/cge.py:776
+#: src/terrascope_br/sources/cge.py:774 src/terrascope_br/sources/cge.py:778
+#: src/terrascope_br/sources/cge.py:779
 msgid "FLOODS"
 msgstr "ALAGAMENTOS"
 
-#: src/terrascope_br/sources/cge.py:775
+#: src/terrascope_br/sources/cge.py:778
 msgid "none today"
 msgstr "nenhum hoje"
 
-#: src/terrascope_br/sources/cge.py:783
+#: src/terrascope_br/sources/cge.py:786
 msgid "more"
 msgstr "mais"
 
-#: src/terrascope_br/sources/cge.py:798
+#: src/terrascope_br/sources/cge.py:801
 msgid "offline"
 msgstr "sem conexão"
 
-#: src/terrascope_br/sources/cge.py:807 src/terrascope_br/sources/cge.py:808
+#: src/terrascope_br/sources/cge.py:810 src/terrascope_br/sources/cge.py:811
 msgid "unavailable"
 msgstr "indisponível"
 

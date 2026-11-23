@@ -56,7 +56,7 @@ def test_five_points_list_three_and_say_how_many_more(layer):
 
 def test_inactive_points_are_marked_over_and_do_not_count_as_active(layer):
     rows = layer._flood_rows({"floods": [_point(active=False, time_text="08:00–08:30", street="AV MORVAN")]})
-    assert rows[0] == (cge._("FLOODS"), f"0{NBSP}{cge._('active')} · 1{NBSP}{cge._('today')}")
+    assert rows[0] == (cge._("FLOODS"), f"{cge._('none active')} · 1{NBSP}{cge._('today')}")
     assert rows[1] == ("", f"08:00 Av. Morvan · {cge._('passable')} {cge._('(over)')}")
 
 
@@ -162,3 +162,14 @@ def test_the_region_forecast_rows_come_from_the_cache_in_the_info_box(layer, mon
         "station": "S", "forecast": [(cge._("TODAY"), "F"), ("", cge._("(whole city)"))]})
     rows = layer.info_rows()
     assert (cge._("TODAY"), "F") in rows and ("", cge._("(whole city)")) in rows
+
+
+def test_no_active_point_reads_none_active_in_portuguese(layer):
+    from terrascope.core import i18n
+
+    i18n.activate("pt_BR")
+    try:
+        rows = layer._flood_rows({"floods": [_point(active=False, street="AV MORVAN")]})
+        assert rows[0] == ("ALAGAMENTOS", f"nenhum ativo · 1{NBSP}hoje")
+    finally:
+        i18n.activate("en")
